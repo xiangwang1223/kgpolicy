@@ -1,7 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="790ee481-e75e-46bc-93f3-0ebbdb8078b2" name="Default Changelist" comment="" />
+    <list default="true" id="790ee481-e75e-46bc-93f3-0ebbdb8078b2" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Main.py" beforeDir="false" afterPath="$PROJECT_DIR$/Main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataloader/data_generator.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataloader/data_generator.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataloader/data_processor.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataloader/data_processor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataloader/loader_advnet.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataloader/loader_advnet.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/recommender/MF.py" beforeDir="false" afterPath="$PROJECT_DIR$/recommender/MF.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utility/test_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/utility/test_model.py" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -16,11 +25,12 @@
     </option>
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/kgpolicy" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectId" id="1PD9GwgKrpQvjwNHnPu6xjcL9ex" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="PropertiesComponent">
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="WebServerToolWindowFactoryState" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/utility" />
     <property name="nodejs_interpreter_path.stuck_in_default_project" value="undefined stuck path" />
@@ -95,7 +105,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1565397707626</updated>
-      <workItem from="1565397708904" duration="59298000" />
+      <workItem from="1565397708904" duration="67361000" />
     </task>
     <servers />
   </component>
