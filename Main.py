@@ -37,7 +37,7 @@ def train(train_loader, test_loader, data_config, args_config):
     recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.lr, weight_decay=args_config.r_decay)
 
     """Initialize Best Hit Rate"""
-    loss_loger, pre_loger, rec_loger, ndcg_loger, auc_loger, hit_loger = [], [], [], [], [], []
+    loss_loger, pre_loger, rec_loger, ndcg_loger, hit_loger = [], [], [], [], []
     stopping_step = 0
     should_stop = False
     cur_best_pre_0 = 0.
@@ -89,7 +89,6 @@ def train(train_loader, test_loader, data_config, args_config):
             rec_loger.append(ret['recall'])
             pre_loger.append(ret['precision'])
             ndcg_loger.append(ret['ndcg'])
-            auc_loger.append(ret['auc'])
             hit_loger.append(ret['hit_ratio'])
 
             if args_config.verbose > 0:
@@ -114,18 +113,16 @@ def train(train_loader, test_loader, data_config, args_config):
     recs = np.array(rec_loger)
     pres = np.array(pre_loger)
     ndcgs = np.array(ndcg_loger)
-    auc = np.array(auc_loger)
     hit = np.array(hit_loger)
 
     best_rec_0 = max(recs[:, 0])
     idx = list(recs[:, 0]).index(best_rec_0)
 
-    final_perf = "Best Iter=[%d]@[%.1f]\trecall=[%s], precision=[%s], hit=[%s], ndcg=[%s], auc=[%.5f]" % \
+    final_perf = "Best Iter=[%d]@[%.1f]\trecall=[%s], precision=[%s], hit=[%s], ndcg=[%s]" % \
                  (idx, time() - t0, '\t'.join(['%.5f' % r for r in recs[idx]]),
                   '\t'.join(['%.5f' % r for r in pres[idx]]),
                   '\t'.join(['%.5f' % r for r in hit[idx]]),
-                  '\t'.join(['%.5f' % r for r in ndcgs[idx]]),
-                  auc[idx])
+                  '\t'.join(['%.5f' % r for r in ndcgs[idx]]))
     print(final_perf)
 
 if __name__ == '__main__':

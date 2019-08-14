@@ -7,6 +7,7 @@ def build_loader(args_config):
                               num_workers=args_config.num_threads)
 
     test_generator = Test_Generator(args_config=args_config)
-    test_loader = DataLoader(test_generator, batch_size=1024, shuffle=False)
+    test_loader = DataLoader(test_generator, batch_size=256, shuffle=False,
+                             num_workers=args_config.num_threads)
 
     return train_loader, test_loader

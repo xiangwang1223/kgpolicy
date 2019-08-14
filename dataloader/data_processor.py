@@ -149,7 +149,7 @@ class CKG_Data(CF_Data, KG_Data):
         CF_Data.__init__(self, args_config=args_config)
         KG_Data.__init__(self, args_config=args_config, entity_start_id=self.n_users, relation_start_id=2)
         self.args_config = args_config
-        self.ckg_graph = self._combine_cf_kg()
+        # self.ckg_graph = self._combine_cf_kg()
 
     def _load_ckg(self, file_name):
         try:

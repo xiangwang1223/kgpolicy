@@ -64,7 +64,7 @@ class Test_Generator(Dataset):
         self.users_to_test = list(CKG.test_user_dict.keys())
 
     def __len__(self):
-        return len(CKG.test_user_dict.keys())
+        return len(self.users_to_test)
 
     def __getitem__(self, index):
         batch_data = {}

@@ -17,6 +17,9 @@ class MF(nn.Module):
 
         self.all_embed = self._init_weight()
 
+        self.all_pred = self._all_predict()
+
+
     def _init_weight(self):
         all_embed = nn.Parameter(torch.FloatTensor(self.n_users + self.n_items, self.emb_size))
 
@@ -64,17 +67,45 @@ class MF(nn.Module):
     def _l2_loss(self, t):
         return torch.mean(torch.sum(t ** 2, dim=1) / 2)
 
-    def inference(self, users, items):
-        """
-        Used for test, calculate predicting score for each items
-        Here we use all items as test.
-        """
-        u_e = self.all_embed[users]
-        i_e = self.all_embed[items]
+    def _all_predict(self):
+        user_embed, item_embed = torch.split(self.all_embed, [self.n_users, self.n_items], dim=0)
+        # all_u_e = user_embed.data
+        # all_i_e = item_embed.data
+        #
+        # if torch.cuda.is_available():
+        #     all_u_e = all_u_e.cuda()
+        #     all_i_e = all_i_e.cuda()
 
-        prediction = torch.matmul(u_e, i_e.t())
+        all_pred = torch.matmul(user_embed, item_embed.t())
+        return all_pred
 
+    def inference(self, users):
+        prediction = self.all_pred[users]
         return prediction
+
+    # def inference(self, users):
+    #     """
+    #     Used for test, calculate predicting score for each items
+    #     Here we use all items as test.
+    #     """
+    #
+    #     user_embed, item_embed = torch.split(self.all_embed, [self.n_users, self.n_items], dim=0)
+    #     all_u_e = user_embed.data
+    #     all_i_e = item_embed.data
+    #
+    #     if torch.cuda.is_available():
+    #         all_u_e = all_u_e.cuda()
+    #         all_i_e = all_i_e.cuda()
+    #
+    #     all_pred = torch.matmul(all_u_e, all_i_e.t())
+    #
+    #     u_e = self.all_embed[users]
+    #     if torch.cuda.is_available():
+    #         u_e = u_e.cuda()
+    #
+    #     prediction = torch.matmul(u_e, all_i_e.t())
+    #
+    #     return prediction
 
     def __str__(self):
         return "recommender using BPRMF, embedding size {}".format(self.args_config.emb_size)
