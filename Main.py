@@ -20,20 +20,60 @@ from sampler.Adversarial_Sampler import AdvNet
 
 from utility.test_model import args_config, CKG
 
+
+def train_one_epoch(recommender, train_loader, recommender_optim, cur_epoch):
+    loss, base_loss, reg_loss = 0, 0, 0
+    """Train one epoch"""
+    tbar = tqdm(train_loader, ascii=True)
+    for _, batch_data in enumerate(tbar):
+        tbar.set_description('Epoch {}'.format(cur_epoch))
+
+        if torch.cuda.is_available():
+            batch_data = {k: v.cuda(non_blocking=True) for k, v in batch_data.items()}
+
+        """Train recommender using negtive item provided by sampler"""
+        recommender_optim.zero_grad()
+        # selected_neg_items, selected_neg_prob = sampler(batch_data)
+
+        # batch_data['neg_id'] = selected_neg_items
+
+        reward_batch, loss_batch, base_loss_batch, reg_loss_batch = recommender(batch_data)
+        loss_batch.backward()
+        recommender_optim.step()
+        # recommender.constraint()
+
+        """Train sampler network"""
+        # sampler_optimer.zero_grad()
+        # reinforce_loss = torch.sum(Variable(reward_batch) * selected_neg_prob)
+        # reinforce_loss.backward()
+        # sampler_optimer.step()
+        # sampler.constraint()
+
+        loss += loss_batch
+        base_loss += base_loss_batch
+        reg_loss += reg_loss_batch
+        # print(torch.mean(reward_batch))
+    
+    print("Epoch {}: \n Training loss: [{} = {} + {}]\n".format(cur_epoch, loss, base_loss, reg_loss))
+    
+    return loss, base_loss, reg_loss
+
+
+
 def train(train_loader, test_loader, data_config, args_config):
     """Build Sampler and Recommender"""
-    sampler = AdvNet(data_config=data_config, args_config=args_config)
+    # sampler = AdvNet(data_config=data_config, args_config=args_config)
     recommender = MF(data_config=data_config, args_config=args_config)
 
     if torch.cuda.is_available():
-        sampler = sampler.cuda()
+        # sampler = sampler.cuda()
         recommender = recommender.cuda()
 
-    print('Set sampler as: {}'.format(str(sampler)))
+    # print('Set sampler as: {}'.format(str(sampler)))
     print('Set recommender as: {}'.format(str(recommender)))
 
     """Build Optimizer"""
-    sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.lr, weight_decay=args_config.s_decay)
+    # sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.lr, weight_decay=args_config.s_decay)
     recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.lr, weight_decay=args_config.r_decay)
 
     """Initialize Best Hit Rate"""
@@ -44,42 +84,12 @@ def train(train_loader, test_loader, data_config, args_config):
     t0 = time()
 
     for epoch in range(args_config.epoch):
+        cur_epoch = epoch + 1
         t1 = time()
-        loss, base_loss, emb_loss, reg_loss = 0., 0., 0., 0.
-        reward = 0.
+        loss, base_loss, reg_loss = train_one_epoch(recommender, train_loader, recommender_optimer, cur_epoch)
 
-        tbar = tqdm(train_loader, ascii=True)
-        for _, batch_data in enumerate(tbar):
-            tbar.set_description('Epoch {}'.format(epoch))
-
-            if torch.cuda.is_available():
-                batch_data = {k: v.cuda(non_blocking=True) for k, v in batch_data.items()}
-
-            """Train recommender using negtive item provided by sampler"""
-            recommender_optimer.zero_grad()
-            # selected_neg_items, selected_neg_prob = sampler(batch_data)
-
-            # batch_data['neg_id'] = selected_neg_items
-
-            reward_batch, loss_batch, base_loss_batch, emb_loss_batch = recommender(batch_data)
-            loss_batch.backward()
-            recommender_optimer.step()
-            # recommender.constraint()
-
-            """Train sampler network"""
-            # sampler_optimer.zero_grad()
-            # reinforce_loss = torch.sum(Variable(reward_batch) * selected_neg_prob)
-            # reinforce_loss.backward()
-            # sampler_optimer.step()
-            # sampler.constraint()
-
-            loss += loss_batch
-            base_loss += base_loss_batch
-            emb_loss += emb_loss_batch
-
-            # print(torch.mean(reward_batch))
-
-        if (epoch + 1) % args_config.show_step == 0:
+        """Test"""
+        if cur_epoch % args_config.show_step == 0:
             with torch.no_grad():
                 t2 = time()
                 ret = test(recommender, test_loader)
@@ -92,9 +102,9 @@ def train(train_loader, test_loader, data_config, args_config):
             hit_loger.append(ret['hit_ratio'])
 
             if args_config.verbose > 0:
-                perf_str = 'Epoch %d [%.1fs + %.1fs]: train==[%.5f=%.5f + %.5f + %.5f], recall=[%.5f, %.5f], ' \
-                           'precision=[%.5f, %.5f], hit=[%.5f, %.5f], ndcg=[%.5f, %.5f]' % \
-                           (epoch, t2 - t1, t3 - t2, loss, base_loss, emb_loss, reg_loss,
+                perf_str = 'Epoch %d [%.1fs + %.1fs]: \n train==[%.5f=%.5f + %.5f], \n recall=[%.5f, %.5f], ' \
+                           '\n precision=[%.5f, %.5f], \n hit=[%.5f, %.5f], \n ndcg=[%.5f, %.5f] \n' % \
+                           (epoch, t2 - t1, t3 - t2, loss, base_loss, reg_loss,
                             ret['recall'][0], ret['recall'][-1],
                             ret['precision'][0], ret['precision'][-1],
                             ret['hit_ratio'][0], ret['hit_ratio'][-1],

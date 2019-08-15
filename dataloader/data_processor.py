@@ -72,9 +72,14 @@ class CF_Data(object):
         self.n_train = len(self.train_data)
         self.n_test = len(self.test_data)
 
-        print('user_range: (%d, %d), n_users: %d' % (self.user_range[0], self.user_range[1], self.n_users))
-        print('item_range: (%d, %d), n_items: %d' % (self.item_range[0], self.item_range[1], self.n_items))
-        print('n_train: %d, n_test: %d' % (self.n_train, self.n_test))
+        print('-'*50)
+        print('- user_range: (%d, %d)' % (self.user_range[0], self.user_range[1]))
+        print('- item_range: (%d, %d)' % (self.item_range[0], self.item_range[1]))
+        print('-    n_train: %d' % self.n_train)
+        print('-     n_test: %d' % self.n_test)
+        print('-    n_users: %d' % self.n_users)
+        print('-    n_items: %d' % self.n_items)
+        print('-'*50)
 
 class KG_Data(object):
     def __init__(self, args_config, entity_start_id=0, relation_start_id=0):
@@ -140,9 +145,13 @@ class KG_Data(object):
         self.relation_range, self.n_relations = _id_range(self.kg_data, idx=1)
         self.n_kg_triples = len(self.kg_data)
 
-        print('entity_range: (%d, %d), n_entities: %d' % (self.entity_range[0], self.entity_range[1], self.n_entities))
-        print('relation_range: (%d, %d), n_relations: %d' % (self.relation_range[0], self.relation_range[1], self.n_relations))
-        print('n_kg_triples: %d' % (self.n_kg_triples))
+        print('-'*50)
+        print('-   entity_range: (%d, %d)' % (self.entity_range[0], self.entity_range[1]))
+        print('- relation_range: (%d, %d)' % (self.relation_range[0], self.relation_range[1]))
+        print('-     n_entities: %d' % self.n_entities)
+        print('-    n_relations: %d' % self.n_relations)
+        print('-   n_kg_triples: %d' % (self.n_kg_triples))
+        print('-'*50)
 
 class CKG_Data(CF_Data, KG_Data):
     def __init__(self, args_config):
@@ -178,11 +187,11 @@ class CKG_Data(CF_Data, KG_Data):
         # ... ids of relations in range of [0, 2 + 2 * #kg relations), including two 'interact' and 'interacted_by'.
         ckg_graph = nx.MultiDiGraph()
         print('Begin to load interaction triples ...')
-        for u_id, i_id in tqdm(cf_mat):
+        for u_id, i_id in tqdm(cf_mat, ascii=True):
             ckg_graph.add_edges_from([(u_id, i_id)], r_id=0)
             ckg_graph.add_edges_from([(i_id, u_id)], r_id=1)
 
         print('Begin to load knowledge graph triples ...')
-        for h_id, r_id, t_id in tqdm(kg_mat):
+        for h_id, r_id, t_id in tqdm(kg_mat, ascii=True):
             ckg_graph.add_edges_from([(h_id, t_id)], r_id=(r_id))
         return ckg_graph

@@ -69,10 +69,6 @@ def test_one_user(x):
     rating = x[0]
     # uid
     u = x[1]
-    # print('hehehe')
-    # print(u)
-    # print('hahaha')
-    # print(rating)
 
     # user u's items in the training set
     try:
@@ -81,20 +77,14 @@ def test_one_user(x):
         training_items = []
     # user u's items in the test set
     user_pos_test = _test_user_dict[u.item()]
-
     all_items = set(range(_item_range[0], _item_range[1] + 1))
-
     test_items = list(all_items - set(training_items))
-
-
     r = ranklist_by_heapq(user_pos_test, test_items, rating, _Ks)
-
 
     return get_performance(user_pos_test, r, _Ks)
 
 
 def test(model, test_loader):
-
 
     result = {'precision': np.zeros(len(_Ks)), 'recall': np.zeros(len(_Ks)), 'ndcg': np.zeros(len(_Ks)),
               'hit_ratio': np.zeros(len(_Ks))}
@@ -105,13 +95,15 @@ def test(model, test_loader):
     for _, batch_data in enumerate(tqdm(test_loader, ascii=True, desc='Evaluate')):
         batch_u_id = batch_data['u_id']
         # all_i_id = torch.arange(start=_item_range[0], end=_item_range[1] + 1, dtype=torch.long)
-        #
         # if torch.cuda.is_available():
         #     all_i_id = all_i_id.cuda()
 
         batch_pred = model.inference(batch_u_id)
 
-        user_batch_rating_uid = zip(batch_pred.cpu(), batch_u_id.cpu())
+        batch_pred = batch_pred.cpu().numpy()
+        batch_u_id = batch_u_id.cpu().numpy()
+
+        user_batch_rating_uid = zip(batch_pred, batch_u_id)
         batch_result = pool.map(test_one_user, user_batch_rating_uid)
 
         for re in batch_result:

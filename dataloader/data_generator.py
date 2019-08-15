@@ -5,10 +5,18 @@ import scipy.sparse as sp
 
 from utility.test_model import args_config, CKG
 
+from time import time
+
+
 class Train_Generator(Dataset):
     def __init__(self, args_config):
         self.args_config = args_config
         # self.sp_adj = self._generate_sp_adj()
+
+        self.user_dict = CKG.train_user_dict
+        self.exist_users = list(CKG.exist_users)
+        self.low_item_index = CKG.item_range[0]
+        self.high_item_index = CKG.item_range[1]
 
     def __len__(self):
         return CKG.n_train
@@ -16,9 +24,9 @@ class Train_Generator(Dataset):
     def __getitem__(self, index):
         out_dict = {}
 
-        user_dict = CKG.train_user_dict
+        user_dict = self.user_dict
         # randomly select one user.
-        u_id = random.sample(CKG.exist_users, 1)[0]
+        u_id = random.sample(self.exist_users, 1)[0]
         out_dict['u_id'] = u_id
 
         # randomly select one positive item.
@@ -32,13 +40,11 @@ class Train_Generator(Dataset):
 
         # (option) randomly select one negative item.
         while True:
-            neg_i_id = np.random.randint(low=CKG.item_range[0], high=CKG.item_range[1], size=1)[0]
+            neg_i_id = np.random.randint(low=self.low_item_index, high=self.high_item_index, size=1)[0]
 
             if neg_i_id not in pos_items:
                 break
         out_dict['neg_i_id'] = neg_i_id
-
-        # print(u_id, pos_i_id, neg_i_id)
 
         # out_dict['train_mask'] = self._generate_sp_mask(uid=u_id)
         return out_dict
