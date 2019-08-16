@@ -38,6 +38,14 @@ def parse_args():
                         help='policy function type: uj, uij')
     parser.add_argument('--s_decay', type=float, default=0,
                         help='Learning rate.')
+    parser.add_argument('--edge_threshold', type=int, default=200,
+                        help='edge threshold to filter knowledge graph')
+    parser.add_argument('--in_channel', type=str, default='[64, 32]', 
+                        help='input channels for gcn')    
+    parser.add_argument('--out_channel', type=str, default='[32, 64]', 
+                        help='output channels for gcn')
+    parser.add_argument('--num_sample', type=int, default=4,
+                        help='number fo samples from gcn')
 
     # ------------------------- experimental settings specific for training --------------------------------------------
     parser.add_argument('--batch_size', type=int, default=1024,
@@ -46,12 +54,14 @@ def parse_args():
                         help='batch size for test')
     parser.add_argument('--num_threads', type=int, default=4,
                         help='number of threads.')
-    parser.add_argument('--epoch', type=int, default=100,
+    parser.add_argument('--epoch', type=int, default=400,
                         help='Number of epoch.')
     parser.add_argument('--verbose', type=int, default=1,
                         help='Interval of evaluation.')
     parser.add_argument('--show_step', type=int, default=10,
                         help='test step.')
+    parser.add_argument('--adj_epoch', type=int, default=10,
+                        help='build adj matrix per _ epoch')
 
     # ------------------------- experimental settings specific for testing ---------------------------------------------
     parser.add_argument('--Ks', nargs='?', default='[20, 40, 60, 80, 100]',

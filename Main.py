@@ -16,12 +16,12 @@ from dataloader.data_processor import CKG_Data
 from dataloader.loader_advnet import build_loader
 
 from recommender.MF import MF
-from sampler.Adversarial_Sampler import AdvNet
+from sampler.KGPolicy_Sampler import KGPolicy
 
 from utility.test_model import args_config, CKG
 
 
-def train_one_epoch(recommender, train_loader, recommender_optim, cur_epoch):
+def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampler_optimer, adj_matrix, cur_epoch):
     loss, base_loss, reg_loss = 0, 0, 0
     """Train one epoch"""
     tbar = tqdm(train_loader, ascii=True)
@@ -33,47 +33,83 @@ def train_one_epoch(recommender, train_loader, recommender_optim, cur_epoch):
 
         """Train recommender using negtive item provided by sampler"""
         recommender_optim.zero_grad()
-        # selected_neg_items, selected_neg_prob = sampler(batch_data)
+        selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix)
 
-        # batch_data['neg_id'] = selected_neg_items
+        batch_data['neg_id'] = selected_neg_items
 
-        reward_batch, loss_batch, base_loss_batch, reg_loss_batch = recommender(batch_data)
+        _, loss_batch, base_loss_batch, reg_loss_batch = recommender(batch_data)
         loss_batch.backward()
         recommender_optim.step()
-        # recommender.constraint()
 
         """Train sampler network"""
-        # sampler_optimer.zero_grad()
-        # reinforce_loss = torch.sum(Variable(reward_batch) * selected_neg_prob)
-        # reinforce_loss.backward()
-        # sampler_optimer.step()
-        # sampler.constraint()
+        sampler_optimer.zero_grad()
+        reward_batch, _, _, _ = recommender(batch_data)
+        reinforce_loss = torch.sum(reward_batch * selected_neg_prob)
+        reinforce_loss.backward()
+        sampler_optimer.step()
 
         loss += loss_batch
         base_loss += base_loss_batch
         reg_loss += reg_loss_batch
-        # print(torch.mean(reward_batch))
     
-    print("Epoch {}: \n Training loss: [{} = {} + {}]\n".format(cur_epoch, loss, base_loss, reg_loss))
+    print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n".format(cur_epoch, loss, base_loss, reg_loss))
     
     return loss, base_loss, reg_loss
 
+def build_adj(n_nodes, edge_threshold, graph):
+    adj_matrix = torch.zeros(n_nodes, edge_threshold)
+
+    for node in tqdm(graph.nodes, ascii=True, desc="Building adj matrix"):
+        neighbors = list(graph.neighbors(node))
+
+        padding_size = edge_threshold - len(neighbors)
+        for _ in range(padding_size):
+            neg_id = random.randint(CKG.item_range[0], CKG.item_range[1])
+            neighbors.append(neg_id)
+        neighbors = torch.tensor(neighbors, dtype=torch.long)
+        adj_matrix[node] = neighbors
+
+    if torch.cuda.is_available():
+        adj_matrix = adj_matrix.cuda().long()
+
+    return adj_matrix
 
 
 def train(train_loader, test_loader, data_config, args_config):
+    """preprocessing ckg graph"""
+    params = {}
+    graph = CKG.ckg_graph
+
+    general_node = []
+    for node in graph.nodes:
+        if(len(set(graph.neighbors(node)))) > args_config.edge_threshold:
+            general_node.append(node)
+    graph.remove_nodes_from(general_node)
+
+    edges = torch.tensor(list(graph.edges), dtype=torch.long)
+    edges = edges[:, :2]
+    if torch.cuda.is_available():
+        edges = edges.cuda()
+
+    params["edges"] = edges
+    params["n_users"] = CKG.n_users
+    n_nodes = CKG.entity_range[1] + 1
+    params["n_nodes"] = n_nodes
+    params["item_range"] = CKG.item_range
+
     """Build Sampler and Recommender"""
-    # sampler = AdvNet(data_config=data_config, args_config=args_config)
     recommender = MF(data_config=data_config, args_config=args_config)
+    sampler = KGPolicy(recommender, params, args_config)
 
     if torch.cuda.is_available():
-        # sampler = sampler.cuda()
+        sampler = sampler.cuda()
         recommender = recommender.cuda()
 
-    # print('Set sampler as: {}'.format(str(sampler)))
+    print('\nSet sampler as: {}'.format(str(sampler)))
     print('Set recommender as: {}'.format(str(recommender)))
 
     """Build Optimizer"""
-    # sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.lr, weight_decay=args_config.s_decay)
+    sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.lr, weight_decay=args_config.s_decay)
     recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.lr, weight_decay=args_config.r_decay)
 
     """Initialize Best Hit Rate"""
@@ -84,9 +120,13 @@ def train(train_loader, test_loader, data_config, args_config):
     t0 = time()
 
     for epoch in range(args_config.epoch):
+        """build adjacency matrix"""
+        if epoch % args_config.adj_epoch == 0:
+            adj_matrix = build_adj(n_nodes, args_config.edge_threshold, graph)
+
         cur_epoch = epoch + 1
         t1 = time()
-        loss, base_loss, reg_loss = train_one_epoch(recommender, train_loader, recommender_optimer, cur_epoch)
+        loss, base_loss, reg_loss = train_one_epoch(recommender, sampler, train_loader, recommender_optimer, sampler_optimer, adj_matrix, cur_epoch)
 
         """Test"""
         if cur_epoch % args_config.show_step == 0:
@@ -102,9 +142,9 @@ def train(train_loader, test_loader, data_config, args_config):
             hit_loger.append(ret['hit_ratio'])
 
             if args_config.verbose > 0:
-                perf_str = 'Epoch %d [%.1fs + %.1fs]: \n train==[%.5f=%.5f + %.5f], \n recall=[%.5f, %.5f], ' \
+                perf_str = 'Evaluate[%.1fs]: \n recall=[%.5f, %.5f], ' \
                            '\n precision=[%.5f, %.5f], \n hit=[%.5f, %.5f], \n ndcg=[%.5f, %.5f] \n' % \
-                           (epoch, t2 - t1, t3 - t2, loss, base_loss, reg_loss,
+                           (t3 - t2,
                             ret['recall'][0], ret['recall'][-1],
                             ret['precision'][0], ret['precision'][-1],
                             ret['hit_ratio'][0], ret['hit_ratio'][-1],
@@ -128,7 +168,7 @@ def train(train_loader, test_loader, data_config, args_config):
     best_rec_0 = max(recs[:, 0])
     idx = list(recs[:, 0]).index(best_rec_0)
 
-    final_perf = "Best Iter=[%d]@[%.1f]\trecall=[%s], precision=[%s], hit=[%s], ndcg=[%s]" % \
+    final_perf = "Best Iter=[%d]@[%.1f]\n recall=[%s] \n precision=[%s] \n hit=[%s] \n ndcg=[%s]" % \
                  (idx, time() - t0, '\t'.join(['%.5f' % r for r in recs[idx]]),
                   '\t'.join(['%.5f' % r for r in pres[idx]]),
                   '\t'.join(['%.5f' % r for r in hit[idx]]),
