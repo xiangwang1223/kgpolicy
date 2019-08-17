@@ -13,7 +13,6 @@ from dataloader.data_processor import CKG_Data
 args_config = parse_args()
 CKG = CKG_Data(args_config=args_config)
 
-
 _Ks = eval(args_config.Ks)
 _train_user_dict, _test_user_dict = CKG.train_user_dict, CKG.test_user_dict
 _n_users = CKG.n_users
@@ -94,9 +93,6 @@ def test(model, test_loader):
 
     for _, batch_data in enumerate(tqdm(test_loader, ascii=True, desc='Evaluate')):
         batch_u_id = batch_data['u_id']
-        # all_i_id = torch.arange(start=_item_range[0], end=_item_range[1] + 1, dtype=torch.long)
-        # if torch.cuda.is_available():
-        #     all_i_id = all_i_id.cuda()
 
         batch_pred = model.inference(batch_u_id)
 
@@ -114,4 +110,3 @@ def test(model, test_loader):
 
     pool.close()
     return result
-

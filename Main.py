@@ -21,8 +21,9 @@ from sampler.KGPolicy_Sampler import KGPolicy
 from utility.test_model import args_config, CKG
 
 
-def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampler_optimer, adj_matrix, cur_epoch):
+def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampler_optimer, adj_matrix, train_data, cur_epoch):
     loss, base_loss, reg_loss = 0, 0, 0
+
     """Train one epoch"""
     tbar = tqdm(train_loader, ascii=True)
     for _, batch_data in enumerate(tbar):
@@ -34,8 +35,19 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
         """Train recommender using negtive item provided by sampler"""
         recommender_optim.zero_grad()
         selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix)
+        """filter items from trainset"""
+        users = batch_data["u_id"]
+        negs = batch_data["neg_i_id"]
+        train_set = train_data[users]
+        in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
 
-        batch_data['neg_id'] = selected_neg_items
+        print(users)
+        print(train_set)
+
+        selected_neg_items[in_train] = negs[in_train]
+
+        # Train recommender with sampled negative items
+        batch_data['neg_i_id'] = selected_neg_items
 
         _, loss_batch, base_loss_batch, reg_loss_batch = recommender(batch_data)
         loss_batch.backward()
@@ -43,11 +55,13 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
 
         """Train sampler network"""
         sampler_optimer.zero_grad()
-        reward_batch, _, _, _ = recommender(batch_data)
+        with torch.no_grad():
+            reward_batch, _, _, _ = recommender(batch_data)
         reinforce_loss = torch.sum(reward_batch * selected_neg_prob)
         reinforce_loss.backward()
         sampler_optimer.step()
 
+        """record loss in an epoch"""
         loss += loss_batch
         base_loss += base_loss_batch
         reg_loss += reg_loss_batch
@@ -57,11 +71,11 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
     return loss, base_loss, reg_loss
 
 def build_adj(n_nodes, edge_threshold, graph):
+    """build adjacency matrix, using random items as padding"""
     adj_matrix = torch.zeros(n_nodes, edge_threshold)
 
     for node in tqdm(graph.nodes, ascii=True, desc="Building adj matrix"):
         neighbors = list(graph.neighbors(node))
-
         padding_size = edge_threshold - len(neighbors)
         for _ in range(padding_size):
             neg_id = random.randint(CKG.item_range[0], CKG.item_range[1])
@@ -76,10 +90,25 @@ def build_adj(n_nodes, edge_threshold, graph):
 
 
 def train(train_loader, test_loader, data_config, args_config):
+    """build training set"""
+    train_mat = CKG.train_user_dict
+
+    num_user = max(train_mat.keys()) + 1
+    num_true = max([len(i) for i in train_mat.values()])
+
+    train_data = torch.zeros(num_user, num_true)
+
+    for i in train_mat:
+        true_list = train_mat[i]
+        true_list += [0] * (num_true - len(true_list))
+        true_list = torch.tensor(true_list, dtype=torch.long)
+        train_data[i] = true_list
+
     """preprocessing ckg graph"""
     params = {}
     graph = CKG.ckg_graph
 
+    """remove node with more than edge_threshold neighbor"""
     general_node = []
     for node in graph.nodes:
         if(len(set(graph.neighbors(node)))) > args_config.edge_threshold:
@@ -90,6 +119,7 @@ def train(train_loader, test_loader, data_config, args_config):
     edges = edges[:, :2]
     if torch.cuda.is_available():
         edges = edges.cuda()
+        train_data = train_data.long().cuda()
 
     params["edges"] = edges
     params["n_users"] = CKG.n_users
@@ -100,7 +130,6 @@ def train(train_loader, test_loader, data_config, args_config):
     """Build Sampler and Recommender"""
     recommender = MF(data_config=data_config, args_config=args_config)
     sampler = KGPolicy(recommender, params, args_config)
-
     if torch.cuda.is_available():
         sampler = sampler.cuda()
         recommender = recommender.cuda()
@@ -126,7 +155,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
         cur_epoch = epoch + 1
         t1 = time()
-        loss, base_loss, reg_loss = train_one_epoch(recommender, sampler, train_loader, recommender_optimer, sampler_optimer, adj_matrix, cur_epoch)
+        loss, base_loss, reg_loss = train_one_epoch(recommender, sampler, train_loader, recommender_optimer, sampler_optimer, adj_matrix, train_data, cur_epoch)
 
         """Test"""
         if cur_epoch % args_config.show_step == 0:
@@ -193,4 +222,3 @@ if __name__ == '__main__':
     train_loader, test_loader = build_loader(args_config=args_config)
     train(train_loader=train_loader, test_loader=test_loader,
           data_config=data_config, args_config=args_config)
-

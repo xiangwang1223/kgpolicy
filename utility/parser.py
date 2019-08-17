@@ -58,7 +58,7 @@ def parse_args():
                         help='Number of epoch.')
     parser.add_argument('--verbose', type=int, default=1,
                         help='Interval of evaluation.')
-    parser.add_argument('--show_step', type=int, default=10,
+    parser.add_argument('--show_step', type=int, default=1,
                         help='test step.')
     parser.add_argument('--adj_epoch', type=int, default=10,
                         help='build adj matrix per _ epoch')
