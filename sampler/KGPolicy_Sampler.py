@@ -95,7 +95,7 @@ class KGPolicy(nn.Module):
         p_entity = pos_e * i_e 
         p = torch.matmul(p_entity, u_e)
         p = p.squeeze()
-        logits = F.softmax(p, dim=1) + 1e-3
+        logits = F.softmax(p+1, dim=1) + 1e-3
 
         """sample negative items based on logits"""
         batch_size = logits.size(0)
@@ -107,7 +107,7 @@ class KGPolicy(nn.Module):
 
         candidate_neg = one_hop[row_id, nid]
         candidate_neg = candidate_neg.squeeze()
-        candidate_logits = logits[row_id, nid]
+        candidate_logits = torch.log(logits[row_id, nid])
         candidate_logits = candidate_logits.squeeze()
 
         return candidate_neg, candidate_logits
@@ -116,7 +116,7 @@ class KGPolicy(nn.Module):
     def dis_step(self, dis, negs, users, logits):
         with torch.no_grad():
             ranking = dis.rank(users, negs)
-        
+
         """get most qualified negative item based on discriminator"""
         indices = torch.argmax(ranking, dim=1)
 

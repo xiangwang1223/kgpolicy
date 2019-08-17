@@ -44,11 +44,13 @@ class MF(nn.Module):
 
         loss = bpr_loss + reg_loss
 
+        reward = neg_scores
+
         # Defining reward function as:
         # reward = 0.
         # if self.reward_type == 'pure':
         #     # ... (1) consider the value of negative scores; the larger, the better;
-        reward = -torch.log(torch.sigmoid(-neg_scores))
+        # reward = -torch.log(torch.sigmoid(-neg_scores))
         # elif self.reward_type == 'prod':
         #     # ... (2) consider additionally the inner product of negative and positive embeddings; the larger, the better;
         #     tmp = torch.sum(pos_e * neg_e, dim=1)

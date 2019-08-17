@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from tqdm import tqdm
+from copy import deepcopy
 
 from utility.parser import parse_args
 from utility.test_model import test
@@ -21,11 +22,13 @@ from sampler.KGPolicy_Sampler import KGPolicy
 from utility.test_model import args_config, CKG
 
 
-def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampler_optimer, adj_matrix, train_data, cur_epoch):
+def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampler_optim, adj_matrix, train_data, cur_epoch, avg_reward):
     loss, base_loss, reg_loss = 0, 0, 0
+    epoch_reward = 0
 
     """Train one epoch"""
     tbar = tqdm(train_loader, ascii=True)
+    num_batch = len(train_loader)
     for _, batch_data in enumerate(tbar):
         tbar.set_description('Epoch {}'.format(cur_epoch))
 
@@ -41,9 +44,6 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
         train_set = train_data[users]
         in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
 
-        print(users)
-        print(train_set)
-
         selected_neg_items[in_train] = negs[in_train]
 
         # Train recommender with sampled negative items
@@ -54,21 +54,26 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
         recommender_optim.step()
 
         """Train sampler network"""
-        sampler_optimer.zero_grad()
+        sampler_optim.zero_grad()
         with torch.no_grad():
             reward_batch, _, _, _ = recommender(batch_data)
+
+        epoch_reward += torch.sum(reward_batch)
+        reward_batch = reward_batch -avg_reward
         reinforce_loss = torch.sum(reward_batch * selected_neg_prob)
         reinforce_loss.backward()
-        sampler_optimer.step()
+        sampler_optim.step()
 
         """record loss in an epoch"""
         loss += loss_batch
         base_loss += base_loss_batch
         reg_loss += reg_loss_batch
     
+    avg_reward = epoch_reward / num_batch
+    
     print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n".format(cur_epoch, loss, base_loss, reg_loss))
     
-    return loss, base_loss, reg_loss
+    return loss, base_loss, reg_loss, avg_reward
 
 def build_adj(n_nodes, edge_threshold, graph):
     """build adjacency matrix, using random items as padding"""
@@ -91,7 +96,7 @@ def build_adj(n_nodes, edge_threshold, graph):
 
 def train(train_loader, test_loader, data_config, args_config):
     """build training set"""
-    train_mat = CKG.train_user_dict
+    train_mat = deepcopy(CKG.train_user_dict)
 
     num_user = max(train_mat.keys()) + 1
     num_true = max([len(i) for i in train_mat.values()])
@@ -106,7 +111,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
     """preprocessing ckg graph"""
     params = {}
-    graph = CKG.ckg_graph
+    graph = deepcopy(CKG.ckg_graph)
 
     """remove node with more than edge_threshold neighbor"""
     general_node = []
@@ -147,6 +152,7 @@ def train(train_loader, test_loader, data_config, args_config):
     should_stop = False
     cur_best_pre_0 = 0.
     t0 = time()
+    avg_reward = 0
 
     for epoch in range(args_config.epoch):
         """build adjacency matrix"""
@@ -155,7 +161,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
         cur_epoch = epoch + 1
         t1 = time()
-        loss, base_loss, reg_loss = train_one_epoch(recommender, sampler, train_loader, recommender_optimer, sampler_optimer, adj_matrix, train_data, cur_epoch)
+        loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler, train_loader, recommender_optimer, sampler_optimer, adj_matrix, train_data, cur_epoch, avg_reward)
 
         """Test"""
         if cur_epoch % args_config.show_step == 0:
