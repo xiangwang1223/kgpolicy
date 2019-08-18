@@ -7,6 +7,7 @@ class MF(nn.Module):
     def __init__(self, data_config, args_config):
         super(MF, self).__init__()
         self.args_config = args_config
+        self.data_config = data_config
         self.n_users = data_config['n_users']
         self.n_items = data_config['n_items']
 
@@ -18,7 +19,11 @@ class MF(nn.Module):
 
     def _init_weight(self):
         all_embed = nn.Parameter(torch.FloatTensor(self.n_users + self.n_items, self.emb_size))
-        nn.init.xavier_uniform_(all_embed)
+        
+        if self.args_config.resume:
+            all_embed.data = self.data_config["all_embed"]
+        else:
+            nn.init.xavier_uniform_(all_embed)
 
         return all_embed
 
@@ -44,8 +49,8 @@ class MF(nn.Module):
 
         loss = bpr_loss + reg_loss
 
-        reward = neg_scores
-
+        tmp = torch.sum(neg_e*pos_e, dim=1)
+        reward = neg_scores + tmp
         # Defining reward function as:
         # reward = 0.
         # if self.reward_type == 'pure':

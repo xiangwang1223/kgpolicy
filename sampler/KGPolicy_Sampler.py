@@ -64,6 +64,7 @@ class KGPolicy(nn.Module):
     def forward(self, data_batch, adj_matrix):
         users = data_batch["u_id"]
         pos = data_batch["pos_i_id"]
+        neg = data_batch["neg_i_id"]
 
         """sample candidate negative items based on knowledge graph"""
         one_hop, _ = self.kg_step(pos, users, adj_matrix, step=1)

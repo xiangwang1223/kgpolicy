@@ -71,7 +71,7 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
     
     avg_reward = epoch_reward / num_batch
     
-    print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n".format(cur_epoch, loss, base_loss, reg_loss))
+    print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n Reward: {4:4f}".format(cur_epoch, loss, base_loss, reg_loss, avg_reward))
     
     return loss, base_loss, reg_loss, avg_reward
 
@@ -132,9 +132,16 @@ def train(train_loader, test_loader, data_config, args_config):
     params["n_nodes"] = n_nodes
     params["item_range"] = CKG.item_range
 
+    if args_config.resume:
+        paras = torch.load(args_config.data_path + 'model/best.ckpt')
+        all_embed = torch.cat((paras["user_para"], paras["item_para"]))
+        data_config["all_embed"] = all_embed
+        print(all_embed.size())
+
     """Build Sampler and Recommender"""
     recommender = MF(data_config=data_config, args_config=args_config)
     sampler = KGPolicy(recommender, params, args_config)
+
     if torch.cuda.is_available():
         sampler = sampler.cuda()
         recommender = recommender.cuda()
@@ -143,7 +150,7 @@ def train(train_loader, test_loader, data_config, args_config):
     print('Set recommender as: {}'.format(str(recommender)))
 
     """Build Optimizer"""
-    sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.lr, weight_decay=args_config.s_decay)
+    sampler_optimer = torch.optim.SGD(sampler.parameters(), lr=args_config.lr, weight_decay=args_config.s_decay)
     recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.lr, weight_decay=args_config.r_decay)
 
     """Initialize Best Hit Rate"""
@@ -177,8 +184,8 @@ def train(train_loader, test_loader, data_config, args_config):
             hit_loger.append(ret['hit_ratio'])
 
             if args_config.verbose > 0:
-                perf_str = 'Evaluate[%.1fs]: \n recall=[%.5f, %.5f], ' \
-                           '\n precision=[%.5f, %.5f], \n hit=[%.5f, %.5f], \n ndcg=[%.5f, %.5f] \n' % \
+                perf_str = 'Evaluate[%.1fs]: \n    recall=[%.5f, %.5f], ' \
+                           '\n precision=[%.5f, %.5f], \n       hit=[%.5f, %.5f], \n      ndcg=[%.5f, %.5f] \n' % \
                            (t3 - t2,
                             ret['recall'][0], ret['recall'][-1],
                             ret['precision'][0], ret['precision'][-1],
@@ -188,7 +195,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
             cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['recall'][0], cur_best_pre_0,
                                                                         stopping_step, expected_order='acc',
-                                                                        flag_step=5)
+                                                                        flag_step=10)
 
             # *********************************************************
             # early stopping when cur_best_pre_0 is decreasing for ten successive steps.
