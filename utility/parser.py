@@ -16,12 +16,12 @@ def parse_args():
                         help='0: No pretrain, 1: Pretrain with updating FISM variables, 2:Pretrain with fixed FISM variables.')
     parser.add_argument('--emb_size', type=int, default=64,
                         help='Embedding size.')
-    parser.add_argument('--regs', nargs='?', default='[1e-8,1e-5,1e-2]',
+    parser.add_argument('--regs', nargs='?', default='[1e-6,1e-5,1e-2]',
                         help='Regularization for user and item embeddings.')
     parser.add_argument('--model_type', nargs='?', default='advnet',
                         help='Specify a loss type (pure_mf or gat_mf).')
     parser.add_argument('--gpu_id', type=int, default=0,
-                        help='0 for NAIS_prod, 1 for NAIS_concat')
+                        help='gpu id')
     parser.add_argument('--layer_size', nargs='?', default='[64]',
                         help='Output sizes of every layer')
 
@@ -46,6 +46,8 @@ def parse_args():
                         help='output channels for gcn')
     parser.add_argument('--num_sample', type=int, default=4,
                         help='number fo samples from gcn')
+    parser.add_argument('--pretrained_s', type=bool, default=False,
+                        help="load pretrained sampler data or not")
 
     # ------------------------- experimental settings specific for training --------------------------------------------
     parser.add_argument('--batch_size', type=int, default=1024,
@@ -64,6 +66,8 @@ def parse_args():
                         help='build adj matrix per _ epoch')
     parser.add_argument('--resume', type=bool, default=False,
                         help="use pretrained model or not")
+    parser.add_argument('--freeze_s', type=bool, default=False,
+                        help="freeze parameters of recommender or not")
 
     # ------------------------- experimental settings specific for testing ---------------------------------------------
     parser.add_argument('--Ks', nargs='?', default='[20, 40, 60, 80, 100]',

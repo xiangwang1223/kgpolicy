@@ -54,12 +54,21 @@ class KGPolicy(nn.Module):
         self.n_entities = params["n_nodes"]
         self.item_range = params["item_range"]
         self.input_channel = in_channel[0]
-        self._initialize_weight(self.n_entities, self.input_channel)
+        self.entity_embedding = self._initialize_weight(self.n_entities, self.input_channel)
 
     def _initialize_weight(self, n_entities, input_channel):
         """entities includes items and other entities in knowledge graph"""
-        self.entity_embedding = nn.Parameter(torch.FloatTensor(n_entities, input_channel))
-        nn.init.xavier_uniform_(self.entity_embedding)
+
+        if self.config.pretrained_s:
+            kg_embedding = self.params["kg_embedding"]
+            entity_embedding = nn.Parameter(kg_embedding)
+        else:
+            entity_embedding = nn.Parameter(torch.FloatTensor(n_entities, input_channel))
+            nn.init.xavier_uniform_(entity_embedding)
+
+        if self.config.freeze_s:
+            entity_embedding.requires_grad = False
+        return entity_embedding
 
     def forward(self, data_batch, adj_matrix):
         users = data_batch["u_id"]

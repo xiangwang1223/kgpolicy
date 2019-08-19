@@ -8,10 +8,11 @@ import torch.nn as nn
 from torch.autograd import Variable
 from tqdm import tqdm
 from copy import deepcopy
+import pickle
 
 from utility.parser import parse_args
 from utility.test_model import test
-from utility.helper import early_stopping, ensureDir
+from utility.helper import early_stopping, ensureDir, freeze, unfreeze
 
 from dataloader.data_processor import CKG_Data
 from dataloader.loader_advnet import build_loader
@@ -136,7 +137,13 @@ def train(train_loader, test_loader, data_config, args_config):
         paras = torch.load(args_config.data_path + 'model/best.ckpt')
         all_embed = torch.cat((paras["user_para"], paras["item_para"]))
         data_config["all_embed"] = all_embed
-        print(all_embed.size())
+    
+    if args_config.pretrained_s:
+        paras = pickle.load(open(args_config.data_path + 'model/kg_embedding.pickle', 'rb'))
+        kg_embedding = torch.from_numpy(paras)
+        if torch.cuda.is_available():
+            kg_embedding = kg_embedding.cuda()
+        params["kg_embedding"] = kg_embedding
 
     """Build Sampler and Recommender"""
     recommender = MF(data_config=data_config, args_config=args_config)

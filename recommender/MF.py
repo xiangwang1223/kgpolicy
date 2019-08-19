@@ -49,8 +49,8 @@ class MF(nn.Module):
 
         loss = bpr_loss + reg_loss
 
-        tmp = torch.sum(neg_e*pos_e, dim=1)
-        reward = neg_scores + tmp
+        ij = torch.sum(neg_e*pos_e, dim=1)
+        reward = neg_scores + ij
         # Defining reward function as:
         # reward = 0.
         # if self.reward_type == 'pure':

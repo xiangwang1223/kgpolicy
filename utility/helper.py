@@ -48,3 +48,13 @@ def early_stopping(log_value, best_value, stopping_step, expected_order='acc', f
     else:
         should_stop = False
     return best_value, stopping_step, should_stop
+
+def freeze(model):
+    for param in model.parameters():
+        param.requires_grad = False
+    return model
+
+def unfreeze(model):
+    for param in model.parameters():
+        param.requires_grad = True 
+    return model
