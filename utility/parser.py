@@ -38,13 +38,13 @@ def parse_args():
                         help='policy function type: uj, uij')
     parser.add_argument('--s_decay', type=float, default=0,
                         help='Learning rate.')
-    parser.add_argument('--edge_threshold', type=int, default=16,
+    parser.add_argument('--edge_threshold', type=int, default=6,
                         help='edge threshold to filter knowledge graph')
     parser.add_argument('--in_channel', type=str, default='[64, 32]', 
                         help='input channels for gcn')    
     parser.add_argument('--out_channel', type=str, default='[32, 64]', 
                         help='output channels for gcn')
-    parser.add_argument('--num_sample', type=int, default=4,
+    parser.add_argument('--num_sample', type=int, default=3,
                         help='number fo samples from gcn')
     parser.add_argument('--pretrained_s', type=bool, default=False,
                         help="load pretrained sampler data or not")

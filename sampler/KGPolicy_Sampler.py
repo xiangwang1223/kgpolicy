@@ -86,7 +86,7 @@ class KGPolicy(nn.Module):
         good_neg, good_logits = self.dis_step(self.dis, candidate_neg, users, logits)
 
         """repeat above steps to k times"""
-        for s in self.config.k_step:
+        for s in range(self.config.k_step):
             one_hop, _ = self.kg_step(good_neg, users, adj_matrix, step=1)
             candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
             candidate_neg = self.filter_entity(candidate_neg)
@@ -117,9 +117,11 @@ class KGPolicy(nn.Module):
         """sample negative items based on logits"""
         batch_size = logits.size(0)
         if step == 1:
-            nid = torch.argmax(logits, dim=1)
+            nid = torch.argmax(logits, dim=1, keepdim=True)
         else:
-            nid = torch.multinomial(logits, num_samples=self.config.num_sample)
+            n = self.config.num_sample
+            _, indices = torch.sort(logits)
+            nid = indices[:,:n]
         row_id = torch.arange(batch_size, device=logits.device).unsqueeze(1)
 
         candidate_neg = one_hop[row_id, nid]
