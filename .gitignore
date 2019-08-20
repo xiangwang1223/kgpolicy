@@ -105,3 +105,7 @@ venv.bak/
 
 # IDEA
 .idea
+
+# output file and log file
+output/
+*.log

@@ -16,7 +16,7 @@ def parse_args():
                         help='0: No pretrain, 1: Pretrain with updating FISM variables, 2:Pretrain with fixed FISM variables.')
     parser.add_argument('--emb_size', type=int, default=64,
                         help='Embedding size.')
-    parser.add_argument('--regs', nargs='?', default='[1e-6,1e-5,1e-2]',
+    parser.add_argument('--regs', nargs='?', default='[1e-7,1e-5,1e-2]',
                         help='Regularization for user and item embeddings.')
     parser.add_argument('--model_type', nargs='?', default='advnet',
                         help='Specify a loss type (pure_mf or gat_mf).')
@@ -38,7 +38,7 @@ def parse_args():
                         help='policy function type: uj, uij')
     parser.add_argument('--s_decay', type=float, default=0,
                         help='Learning rate.')
-    parser.add_argument('--edge_threshold', type=int, default=8,
+    parser.add_argument('--edge_threshold', type=int, default=16,
                         help='edge threshold to filter knowledge graph')
     parser.add_argument('--in_channel', type=str, default='[64, 32]', 
                         help='input channels for gcn')    
@@ -48,6 +48,8 @@ def parse_args():
                         help='number fo samples from gcn')
     parser.add_argument('--pretrained_s', type=bool, default=False,
                         help="load pretrained sampler data or not")
+    parser.add_argument('--k_step', type=int, default=2,
+                        help="k step from current positive items")
 
     # ------------------------- experimental settings specific for training --------------------------------------------
     parser.add_argument('--batch_size', type=int, default=1024,

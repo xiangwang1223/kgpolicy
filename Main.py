@@ -200,9 +200,9 @@ def train(train_loader, test_loader, data_config, args_config):
                             ret['ndcg'][0], ret['ndcg'][-1])
                 print(perf_str)
 
-            cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['recall'][0], cur_best_pre_0,
+            cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['hit_ratio'][0], cur_best_pre_0,
                                                                         stopping_step, expected_order='acc',
-                                                                        flag_step=10)
+                                                                        flag_step=30)
 
             # *********************************************************
             # early stopping when cur_best_pre_0 is decreasing for ten successive steps.
