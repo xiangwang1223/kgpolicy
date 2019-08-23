@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from torch.utils.data import Dataset
 import random
 import scipy.sparse as sp
@@ -38,16 +39,24 @@ class Train_Generator(Dataset):
 
         out_dict['pos_i_id'] = pos_i_id
 
-        # (option) randomly select one negative item.
+        neg_i_id = self.get_random_neg(pos_items, [])
+        out_dict['neg_i_id'] = neg_i_id
+
+        neg_i_ids = []
+        for i in range(self.args_config.k_neg):
+            neg_i_id = self.get_random_neg(pos_items, neg_i_ids)
+            neg_i_ids.append(neg_i_id)
+        out_dict["neg_i_ids"] = torch.tensor(neg_i_ids)
+
+        return out_dict
+
+    def get_random_neg(self, pos_items, selected_items):
         while True:
             neg_i_id = np.random.randint(low=self.low_item_index, high=self.high_item_index, size=1)[0]
 
-            if neg_i_id not in pos_items:
+            if neg_i_id not in pos_items and neg_i_id not in selected_items:
                 break
-        out_dict['neg_i_id'] = neg_i_id
-
-        # out_dict['train_mask'] = self._generate_sp_mask(uid=u_id)
-        return out_dict
+        return neg_i_id
 
     def _generate_sp_adj(self):
         train_data = CKG.train_data

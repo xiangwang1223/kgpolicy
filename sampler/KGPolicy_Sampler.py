@@ -12,25 +12,49 @@ class GraphConv(nn.Module):
     Input: embedding matrix for knowledge graph entity and adjacency matrix
     Output: gcn embedding for kg entity
     """
-    def __init__(self, in_channel, out_channel):
+    def __init__(self, in_channel, out_channel, config):
         super(GraphConv, self).__init__()
         in_channel1, in_channel2 = in_channel[0], in_channel[1]
         out_channel1, out_channel2 = out_channel[0], out_channel[1]
+        self.config = config
 
-        self.conv1 = geometric.nn.GCNConv(in_channel1, out_channel1)
-        self.conv2 = geometric.nn.GCNConv(in_channel2, out_channel2)
+        if config.gcn == "sage":
+            self.conv1 = geometric.nn.SAGEConv(in_channel1, out_channel1)
+            self.conv2 = geometric.nn.SAGEConv(in_channel2, out_channel2)
+        elif config.gcn == "sg":
+            self.conv1 = geometric.nn.SGConv(in_channel1, out_channel1)
+            self.conv2 = geometric.nn.SGConv(in_channel2, out_channel2)
+        elif config.gcn == "appnp":
+            self.conv1 = geometric.nn.APPNP(K=10, alpha=0.1)
+        elif config.gcn == "rgcn":
+            self.conv1 = geometric.nn.RGCNConv(in_channel1, out_channel1, num_relations=config.num_relations, num_bases=5)
+            self.conv2 = geometric.nn.RGCNConv(in_channel2, out_channel2, num_relations=config.num_relations, num_bases=5)
 
         self.batch_norm1 = nn.BatchNorm1d(out_channel1)
         self.batch_norm2 = nn.BatchNorm1d(out_channel2)
 
-    def forward(self, x, edge_indices):
-        x = self.conv1(x, edge_indices)
-        x = F.leaky_relu(x)
-        x = self.batch_norm1(x)
-        x = F.dropout(x)
+    def forward(self, x, edge_indices, r_index):
+        if self.config.gcn == "appnp":
+            x = self.conv1(x, edge_indices)
+            x = F.leaky_relu(x)
+            x = self.batch_norm2(x)
+            x = F.dropout(x)
+        elif self.config.gcn == "rgcn":
+            x = self.conv1(x, edge_indices, r_index)
+            x = F.leaky_relu(x)
+            x = self.batch_norm1(x)
+            x = F.dropout(x)
 
-        x = self.conv2(x, edge_indices)
-        x = self.batch_norm2(x)
+            x = self.conv2(x, edge_indices, r_index)
+            x = self.batch_norm2(x)
+        else:
+            x = self.conv1(x, edge_indices)
+            x = F.leaky_relu(x)
+            x = self.batch_norm1(x)
+            x = F.dropout(x)
+
+            x = self.conv2(x, edge_indices)
+            x = self.batch_norm2(x)
         return x
 
 
@@ -48,7 +72,8 @@ class KGPolicy(nn.Module):
 
         in_channel = eval(config.in_channel)
         out_channel = eval(config.out_channel)
-        self.gcn = GraphConv(in_channel, out_channel)
+        config.num_relations = params["n_relations"]
+        self.gcn = GraphConv(in_channel, out_channel, config)
 
         self.edges = params["edges"]
         self.n_entities = params["n_nodes"]
@@ -58,7 +83,6 @@ class KGPolicy(nn.Module):
 
     def _initialize_weight(self, n_entities, input_channel):
         """entities includes items and other entities in knowledge graph"""
-
         if self.config.pretrained_s:
             kg_embedding = self.params["kg_embedding"]
             entity_embedding = nn.Parameter(kg_embedding)
@@ -86,7 +110,7 @@ class KGPolicy(nn.Module):
         good_neg, good_logits = self.dis_step(self.dis, candidate_neg, users, logits)
 
         """repeat above steps to k times"""
-        for s in range(self.config.k_step):
+        for s in range(self.config.k_step - 1):
             one_hop, _ = self.kg_step(good_neg, users, adj_matrix, step=1)
             candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
             candidate_neg = self.filter_entity(candidate_neg)
@@ -98,7 +122,7 @@ class KGPolicy(nn.Module):
         x = self.entity_embedding
         edges = self.edges
         """knowledge graph embedding using gcn"""
-        gcn_embedding = self.gcn(x, edges.t().contiguous())
+        gcn_embedding = self.gcn(x, edges[:, :2].t().contiguous(), edges[:, 2].t().contiguous().long())
 
         """use knowledge embedding to decide candidate negative items"""
         u_e = gcn_embedding[user]
@@ -130,7 +154,6 @@ class KGPolicy(nn.Module):
         candidate_logits = candidate_logits.squeeze()
 
         return candidate_neg, candidate_logits
-
 
     def dis_step(self, dis, negs, users, logits):
         with torch.no_grad():

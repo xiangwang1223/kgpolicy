@@ -41,11 +41,27 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
         selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix)
         """filter items from trainset"""
         users = batch_data["u_id"]
-        negs = batch_data["neg_i_id"]
+        neg = batch_data["neg_i_id"]
+        # negs = batch_data["neg_i_ids"]
+
+        """get good candidate negative items based on discriminator"""
+        # ----------------------------------------------------------------------------
+        # use dns neg replace neg in train set
+        # with torch.no_grad():
+        #     ranking = recommender.rank(users, negs)
+        # _, indices = torch.sort(ranking, descending=True)
+        # indices = indices[:,0]
+
+        # batch_size = negs.size(0)
+        # row_id = torch.arange(batch_size, device=negs.device).unsqueeze(1)
+        # indices = indices.unsqueeze(1)
+        # good_neg = negs[row_id, indices].squeeze()
+        # ----------------------------------------------------------------------------
+        """if output from sampler includes training items, replace it with goodneg"""
         train_set = train_data[users]
         in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
 
-        selected_neg_items[in_train] = negs[in_train]
+        selected_neg_items[in_train] = neg[in_train]
 
         # Train recommender with sampled negative items
         batch_data['neg_i_id'] = selected_neg_items
@@ -122,13 +138,13 @@ def train(train_loader, test_loader, data_config, args_config):
     graph.remove_nodes_from(general_node)
 
     edges = torch.tensor(list(graph.edges), dtype=torch.long)
-    edges = edges[:, :2]
     if torch.cuda.is_available():
         edges = edges.cuda()
         train_data = train_data.long().cuda()
 
     params["edges"] = edges
     params["n_users"] = CKG.n_users
+    params["n_relations"] = CKG.n_relations
     n_nodes = CKG.entity_range[1] + 1
     params["n_nodes"] = n_nodes
     params["item_range"] = CKG.item_range
@@ -191,13 +207,13 @@ def train(train_loader, test_loader, data_config, args_config):
             hit_loger.append(ret['hit_ratio'])
 
             if args_config.verbose > 0:
-                perf_str = 'Evaluate[%.1fs]: \n    recall=[%.5f, %.5f], ' \
-                           '\n precision=[%.5f, %.5f], \n       hit=[%.5f, %.5f], \n      ndcg=[%.5f, %.5f] \n' % \
+                perf_str = 'Evaluate[%.1fs]: \n    recall=[%.5f, %.5f, %.5f, %.5f, %.5f], ' \
+                           '\n precision=[%.5f, %.5f, %.5f, %.5f, %.5f], \n       hit=[%.5f, %.5f, %.5f, %.5f, %.5f], \n      ndcg=[%.5f, %.5f, %.5f, %.5f, %.5f] \n' % \
                            (t3 - t2,
-                            ret['recall'][0], ret['recall'][-1],
-                            ret['precision'][0], ret['precision'][-1],
-                            ret['hit_ratio'][0], ret['hit_ratio'][-1],
-                            ret['ndcg'][0], ret['ndcg'][-1])
+                            ret['recall'][0], ret['recall'][1], ret['recall'][2], ret['recall'][3], ret['recall'][4],
+                            ret['precision'][0], ret['precision'][1], ret['precision'][2], ret['precision'][3], ret['precision'][4],
+                            ret['hit_ratio'][0],ret['hit_ratio'][1], ret['hit_ratio'][2], ret['hit_ratio'][3], ret['hit_ratio'][4],
+                            ret['ndcg'][0], ret['ndcg'][1], ret['ndcg'][2], ret['ndcg'][3], ret['ndcg'][4])
                 print(perf_str)
 
             cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['hit_ratio'][0], cur_best_pre_0,

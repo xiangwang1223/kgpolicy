@@ -24,6 +24,8 @@ def parse_args():
                         help='gpu id')
     parser.add_argument('--layer_size', nargs='?', default='[64]',
                         help='Output sizes of every layer')
+    parser.add_argument('--k_neg', type=int, default=4,
+                        help='number of negative items in list')
 
     # ------------------------- experimental settings specific for recommender --------------------------------------------
     parser.add_argument('--reward_type', nargs='?', default='pure',
@@ -38,18 +40,20 @@ def parse_args():
                         help='policy function type: uj, uij')
     parser.add_argument('--s_decay', type=float, default=0,
                         help='Learning rate.')
-    parser.add_argument('--edge_threshold', type=int, default=6,
+    parser.add_argument('--edge_threshold', type=int, default=8,
                         help='edge threshold to filter knowledge graph')
     parser.add_argument('--in_channel', type=str, default='[64, 32]', 
                         help='input channels for gcn')    
     parser.add_argument('--out_channel', type=str, default='[32, 64]', 
                         help='output channels for gcn')
-    parser.add_argument('--num_sample', type=int, default=3,
+    parser.add_argument('--num_sample', type=int, default=4,
                         help='number fo samples from gcn')
     parser.add_argument('--pretrained_s', type=bool, default=False,
                         help="load pretrained sampler data or not")
     parser.add_argument('--k_step', type=int, default=2,
                         help="k step from current positive items")
+    parser.add_argument('--gcn', type=str, default="sage",
+                        help="graph convolutional type")
 
     # ------------------------- experimental settings specific for training --------------------------------------------
     parser.add_argument('--batch_size', type=int, default=1024,
