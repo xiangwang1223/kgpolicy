@@ -14,47 +14,32 @@ class GraphConv(nn.Module):
     """
     def __init__(self, in_channel, out_channel, config):
         super(GraphConv, self).__init__()
-        in_channel1, in_channel2 = in_channel[0], in_channel[1]
-        out_channel1, out_channel2 = out_channel[0], out_channel[1]
         self.config = config
 
         if config.gcn == "sage":
-            self.conv1 = geometric.nn.SAGEConv(in_channel1, out_channel1)
-            self.conv2 = geometric.nn.SAGEConv(in_channel2, out_channel2)
+            self.conv1 = geometric.nn.SAGEConv(in_channel, out_channel)
         elif config.gcn == "sg":
-            self.conv1 = geometric.nn.SGConv(in_channel1, out_channel1)
-            self.conv2 = geometric.nn.SGConv(in_channel2, out_channel2)
+            self.conv1 = geometric.nn.SGConv(in_channel, out_channel)
         elif config.gcn == "appnp":
             self.conv1 = geometric.nn.APPNP(K=10, alpha=0.1)
         elif config.gcn == "rgcn":
-            self.conv1 = geometric.nn.RGCNConv(in_channel1, out_channel1, num_relations=config.num_relations, num_bases=5)
-            self.conv2 = geometric.nn.RGCNConv(in_channel2, out_channel2, num_relations=config.num_relations, num_bases=5)
+            self.conv1 = geometric.nn.RGCNConv(in_channel, out_channel, num_relations=config.num_relations, num_bases=5)
 
-        self.batch_norm1 = nn.BatchNorm1d(out_channel1)
-        self.batch_norm2 = nn.BatchNorm1d(out_channel2)
+        self.batch_norm = nn.BatchNorm1d(out_channel)
 
     def forward(self, x, edge_indices, r_index):
         if self.config.gcn == "appnp":
             x = self.conv1(x, edge_indices)
             x = F.leaky_relu(x)
-            x = self.batch_norm2(x)
-            x = F.dropout(x)
         elif self.config.gcn == "rgcn":
             x = self.conv1(x, edge_indices, r_index)
             x = F.leaky_relu(x)
-            x = self.batch_norm1(x)
+            x = self.batch_norm(x)
             x = F.dropout(x)
-
-            x = self.conv2(x, edge_indices, r_index)
-            x = self.batch_norm2(x)
         else:
             x = self.conv1(x, edge_indices)
             x = F.leaky_relu(x)
-            x = self.batch_norm1(x)
-            x = F.dropout(x)
-
-            x = self.conv2(x, edge_indices)
-            x = self.batch_norm2(x)
+            x = self.batch_norm(x)
         return x
 
 
@@ -78,7 +63,7 @@ class KGPolicy(nn.Module):
         self.edges = params["edges"]
         self.n_entities = params["n_nodes"]
         self.item_range = params["item_range"]
-        self.input_channel = in_channel[0]
+        self.input_channel = in_channel
         self.entity_embedding = self._initialize_weight(self.n_entities, self.input_channel)
 
     def _initialize_weight(self, n_entities, input_channel):

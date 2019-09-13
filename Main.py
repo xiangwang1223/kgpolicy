@@ -1,11 +1,12 @@
 import os
 import sys
 from time import time
-import numpy as np
 import random
+
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
+import numpy as np
+
 from tqdm import tqdm
 from copy import deepcopy
 import pickle
@@ -13,15 +14,55 @@ import pickle
 from utility.parser import parse_args
 from utility.test_model import test
 from utility.helper import early_stopping, ensureDir, freeze, unfreeze
-
-from dataloader.data_processor import CKG_Data
-from dataloader.loader_advnet import build_loader
-
-from recommender.MF import MF
-from sampler.KGPolicy_Sampler import KGPolicy
-
 from utility.test_model import args_config, CKG
 
+from dataloader.data_processor import CKG_Data
+from dataloader.data_loader import build_loader
+
+from recommender.MF import MF
+from recommender.KGAT import KGAT
+from sampler.KGPolicy_Sampler import KGPolicy
+
+
+def train_dns_epoch(recommender, train_loader, recommender_optim, cur_epoch):
+    loss, base_loss, reg_loss = 0, 0, 0
+
+    tbar = tqdm(train_loader, ascii=True)
+    for _, batch_data in enumerate(tbar):
+        tbar.set_description('Epoch {}'.format(cur_epoch))
+
+        if torch.cuda.is_available():
+            data_batch = {k: v.cuda(non_blocking=True) for k, v in batch_data.items()}
+
+        recommender_optim.zero_grad()
+
+        with torch.no_grad():
+            users = batch_data["u_id"]
+            negs = batch_data["neg_i_ids"]
+            ranking = recommender.rank(users, negs)
+
+        _, indices = torch.sort(ranking, descending=True)
+        indices = indices[:, 0]
+
+        batch_size = negs.size(0)
+
+        row_id = torch.arange(batch_size, device=negs.device).unsqueeze(1)
+        indices = indices.unsqueeze(1)
+        good_neg = negs[row_id, indices].squeeze()
+
+        batch_data["neg_i_id"] = good_neg
+        _, loss_batch, gmf_batch_loss, reg_batch_loss = recommender(batch_data)
+
+        loss_batch.backward()
+        recommender_optim.step()
+
+        loss += loss_batch
+        base_loss += gmf_batch_loss
+        reg_loss += reg_batch_loss
+
+    print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n".format(cur_epoch, loss, base_loss, reg_loss))
+
+    return base_loss, base_loss, reg_loss, 0.0
 
 def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampler_optim, adj_matrix, train_data, cur_epoch, avg_reward):
     loss, base_loss, reg_loss = 0, 0, 0
@@ -42,28 +83,14 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
         """filter items from trainset"""
         users = batch_data["u_id"]
         neg = batch_data["neg_i_id"]
-        # negs = batch_data["neg_i_ids"]
 
-        """get good candidate negative items based on discriminator"""
-        # ----------------------------------------------------------------------------
-        # use dns neg replace neg in train set
-        # with torch.no_grad():
-        #     ranking = recommender.rank(users, negs)
-        # _, indices = torch.sort(ranking, descending=True)
-        # indices = indices[:,0]
-
-        # batch_size = negs.size(0)
-        # row_id = torch.arange(batch_size, device=negs.device).unsqueeze(1)
-        # indices = indices.unsqueeze(1)
-        # good_neg = negs[row_id, indices].squeeze()
-        # ----------------------------------------------------------------------------
         """if output from sampler includes training items, replace it with goodneg"""
         train_set = train_data[users]
         in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
 
         selected_neg_items[in_train] = neg[in_train]
 
-        # Train recommender with sampled negative items
+        """Train recommender with sampled negative items"""
         batch_data['neg_i_id'] = selected_neg_items
 
         _, loss_batch, base_loss_batch, reg_loss_batch = recommender(batch_data)
@@ -120,6 +147,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
     train_data = torch.zeros(num_user, num_true)
 
+    """get padded tensor for ground true"""
     for i in train_mat:
         true_list = train_mat[i]
         true_list += [0] * (num_true - len(true_list))
@@ -128,6 +156,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
     """preprocessing ckg graph"""
     params = {}
+    print('\ncopying ckg graph...')
     graph = deepcopy(CKG.ckg_graph)
 
     """remove node with more than edge_threshold neighbor"""
@@ -150,7 +179,7 @@ def train(train_loader, test_loader, data_config, args_config):
     params["item_range"] = CKG.item_range
 
     if args_config.resume:
-        paras = torch.load(args_config.data_path + 'model/best.ckpt')
+        paras = torch.load(args_config.data_path + args_config.model_path)
         all_embed = torch.cat((paras["user_para"], paras["item_para"]))
         data_config["all_embed"] = all_embed
     
@@ -161,20 +190,29 @@ def train(train_loader, test_loader, data_config, args_config):
             kg_embedding = kg_embedding.cuda()
         params["kg_embedding"] = kg_embedding
 
+    data_config['n_nodes'] = n_nodes
+    data_config['edges'] = edges
     """Build Sampler and Recommender"""
-    recommender = MF(data_config=data_config, args_config=args_config)
-    sampler = KGPolicy(recommender, params, args_config)
+    if args_config.recommender == "MF":
+        recommender = MF(data_config=data_config, args_config=args_config)
+    elif args_config.recommender == "KGAT":
+        recommender = KGAT(data_config=data_config, args_config=args_config)
+    
+    if args_config.sampler == "KGPolicy":
+        sampler = KGPolicy(recommender, params, args_config)
+        sampler_optimer = torch.optim.SGD(sampler.parameters(), lr=args_config.slr)
+    elif args_config.sampler == "DNS":
+        pass    
 
     if torch.cuda.is_available():
-        sampler = sampler.cuda()
+        if args_config.sampler == "KGPolicy":
+            sampler = sampler.cuda()
+            print('\nSet sampler as: {}'.format(str(sampler)))
         recommender = recommender.cuda()
-
-    print('\nSet sampler as: {}'.format(str(sampler)))
-    print('Set recommender as: {}'.format(str(recommender)))
+        print('Set recommender as: {}'.format(str(recommender)))
 
     """Build Optimizer"""
-    sampler_optimer = torch.optim.SGD(sampler.parameters(), lr=args_config.lr, weight_decay=args_config.s_decay)
-    recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.lr, weight_decay=args_config.r_decay)
+    recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.rlr)
 
     """Initialize Best Hit Rate"""
     loss_loger, pre_loger, rec_loger, ndcg_loger, hit_loger = [], [], [], [], []
@@ -191,7 +229,10 @@ def train(train_loader, test_loader, data_config, args_config):
 
         cur_epoch = epoch + 1
         t1 = time()
-        loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler, train_loader, recommender_optimer, sampler_optimer, adj_matrix, train_data, cur_epoch, avg_reward)
+        if args_config.sampler == "KGPolicy":
+            loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler, train_loader, recommender_optimer, sampler_optimer, adj_matrix, train_data, cur_epoch, avg_reward)
+        elif args_config.sampler == "DNS": 
+            loss, base_loss, reg_loss, avg_reward = train_dns_epoch(recommender, train_loader, recommender_optimer, cur_epoch)
 
         """Test"""
         if cur_epoch % args_config.show_step == 0:
@@ -216,7 +257,7 @@ def train(train_loader, test_loader, data_config, args_config):
                             ret['ndcg'][0], ret['ndcg'][1], ret['ndcg'][2], ret['ndcg'][3], ret['ndcg'][4])
                 print(perf_str)
 
-            cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['hit_ratio'][0], cur_best_pre_0,
+            cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['recall'][0], cur_best_pre_0,
                                                                         stopping_step, expected_order='acc',
                                                                         flag_step=30)
 

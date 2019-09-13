@@ -10,13 +10,13 @@ def parse_args():
                         help='Input data path.')
     parser.add_argument('--proj_path', nargs='?', default='',
                         help='Input project path.')
-    parser.add_argument('--dataset', nargs='?', default='amazon-book',
+    parser.add_argument('--dataset', nargs='?', default='yelp2018',
                         help='Choose a dataset.')
     parser.add_argument('--pretrain', type=int, default=0,
                         help='0: No pretrain, 1: Pretrain with updating FISM variables, 2:Pretrain with fixed FISM variables.')
     parser.add_argument('--emb_size', type=int, default=64,
                         help='Embedding size.')
-    parser.add_argument('--regs', nargs='?', default='[1e-7,1e-5,1e-2]',
+    parser.add_argument('--regs', nargs='?', default='1e-5',
                         help='Regularization for user and item embeddings.')
     parser.add_argument('--model_type', nargs='?', default='advnet',
                         help='Specify a loss type (pure_mf or gat_mf).')
@@ -24,27 +24,29 @@ def parse_args():
                         help='gpu id')
     parser.add_argument('--layer_size', nargs='?', default='[64]',
                         help='Output sizes of every layer')
-    parser.add_argument('--k_neg', type=int, default=4,
+    parser.add_argument('--k_neg', type=int, default=8,
                         help='number of negative items in list')
 
     # ------------------------- experimental settings specific for recommender --------------------------------------------
+    parser.add_argument('--recommender', type=str, default="KGAT",
+                        help="type for recommender")
     parser.add_argument('--reward_type', nargs='?', default='pure',
                         help='reward function type: pure, prod')
-    parser.add_argument('--lr', type=float, default=0.0001,
-                        help='Learning rate.')
-    parser.add_argument('--r_decay', type=float, default=0,
-                        help='recommender weight decay.')
+    parser.add_argument('--slr', type=float, default=0.0001,
+                        help='Learning rate for sampler.')
+    parser.add_argument('--rlr', type=float, default=0.0001,
+                        help='Learning rate recommender.')
 
     # ------------------------- experimental settings specific for sampler --------------------------------------------
+    parser.add_argument("--sampler", type=str, default="KGPolicy",
+                        help="type for sampler")
     parser.add_argument('--policy_type', nargs='?', default='uj',
                         help='policy function type: uj, uij')
-    parser.add_argument('--s_decay', type=float, default=0,
-                        help='Learning rate.')
     parser.add_argument('--edge_threshold', type=int, default=8,
                         help='edge threshold to filter knowledge graph')
-    parser.add_argument('--in_channel', type=str, default='[64, 32]', 
+    parser.add_argument('--in_channel', type=str, default='64', 
                         help='input channels for gcn')    
-    parser.add_argument('--out_channel', type=str, default='[32, 64]', 
+    parser.add_argument('--out_channel', type=str, default='64', 
                         help='output channels for gcn')
     parser.add_argument('--num_sample', type=int, default=4,
                         help='number fo samples from gcn')
@@ -74,6 +76,8 @@ def parse_args():
                         help="use pretrained model or not")
     parser.add_argument('--freeze_s', type=bool, default=False,
                         help="freeze parameters of recommender or not")
+    parser.add_argument('--model_path', type=str, default='model/best_yelp.ckpt',
+                        help="path for pretrain model")
 
     # ------------------------- experimental settings specific for testing ---------------------------------------------
     parser.add_argument('--Ks', nargs='?', default='[20, 40, 60, 80, 100]',
