@@ -2,6 +2,7 @@ import os
 import sys
 from time import time
 import random
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -24,7 +25,14 @@ from recommender.KGAT import KGAT
 from sampler.KGPolicy_Sampler import KGPolicy
 
 
-def train_dns_epoch(recommender, train_loader, recommender_optim, cur_epoch):
+def train_dns_epoch(recommender, 
+                    train_loader, 
+                    recommender_optim, 
+                    cur_epoch):
+    """
+        train a dns epoch, when sampler is set to dns
+    """
+
     loss, base_loss, reg_loss = 0, 0, 0
 
     tbar = tqdm(train_loader, ascii=True)
@@ -62,9 +70,55 @@ def train_dns_epoch(recommender, train_loader, recommender_optim, cur_epoch):
 
     print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n".format(cur_epoch, loss, base_loss, reg_loss))
 
-    return base_loss, base_loss, reg_loss, 0.0
+    return base_loss, base_loss, reg_loss
 
-def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampler_optim, adj_matrix, train_data, cur_epoch, avg_reward):
+def train_random_epoch(recommender, 
+                       train_loader, 
+                       recommender_optim, 
+                       cur_epoch):
+    """
+        train a random epoch, when sampler is set to random sampler
+    """
+
+    loss, base_loss, reg_loss = 0, 0, 0
+
+    tbar = tqdm(train_loader, ascii=True)
+    for _, batch_data in enumerate(tbar):
+        tbar.set_description('Epoch {}'.format(cur_epoch))
+
+        if torch.cuda.is_available():
+            data_batch = {k: v.cuda(non_blocking=True) for k, v in batch_data.items()}
+        
+        recommender_optim.zero_grad()
+
+        _, loss_batch, gmf_batch_loss, reg_batch_loss = recommender(batch_data)
+
+        loss_batch.backward()
+        recommender_optim.step()
+
+        loss += loss_batch
+        base_loss += gmf_batch_loss
+        reg_loss += reg_batch_loss
+
+    print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n".format(cur_epoch, loss, base_loss, reg_loss))
+
+    return base_loss, base_loss, reg_loss
+
+
+def train_one_epoch(recommender, 
+                    sampler, 
+                    train_loader, 
+                    recommender_optim, 
+                    sampler_optim, 
+                    adj_matrix, 
+                    edge_matrix, 
+                    train_data, 
+                    cur_epoch, 
+                    avg_reward, 
+                    config):
+    """
+        train one epoch, when sampler is set to KGPolicy
+    """
     loss, base_loss, reg_loss = 0, 0, 0
     epoch_reward = 0
 
@@ -77,37 +131,50 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
         if torch.cuda.is_available():
             batch_data = {k: v.cuda(non_blocking=True) for k, v in batch_data.items()}
 
-        """Train recommender using negtive item provided by sampler"""
-        recommender_optim.zero_grad()
-        selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix)
-        """filter items from trainset"""
-        users = batch_data["u_id"]
-        neg = batch_data["neg_i_id"]
+        for i in range(config.r_step):
+            """Train recommender using negtive item provided by sampler"""
+            recommender_optim.zero_grad()
+            selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix, edge_matrix)
+            """filter items from trainset"""
+            users = batch_data["u_id"]
+            neg = batch_data["neg_i_id"]
 
-        """if output from sampler includes training items, replace it with goodneg"""
-        train_set = train_data[users]
-        in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
+            """if output from sampler includes training items, replace it with goodneg"""
+            train_set = train_data[users]
+            in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
+            # print("#"*20)
+            # print(torch.sum(in_train))
+            selected_neg_items[in_train] = neg[in_train]
 
-        selected_neg_items[in_train] = neg[in_train]
+            # --- for case study ---
+            # print("positive items \n", batch_data['pos_i_id'][:20])
+            # print("random sampled negative sample \n ", batch_data['neg_i_id'][:20])
+            # print("sample from KG-Policy \n", selected_neg_items[:20])
 
-        """Train recommender with sampled negative items"""
-        batch_data['neg_i_id'] = selected_neg_items
+            """Train recommender with sampled negative items"""
+            batch_data['neg'] = batch_data['neg_i_id']
+            batch_data['neg_i_id'] = selected_neg_items
 
-        _, loss_batch, base_loss_batch, reg_loss_batch = recommender(batch_data)
-        loss_batch.backward()
-        recommender_optim.step()
+            _, loss_batch, base_loss_batch, reg_loss_batch = recommender(batch_data, edge_matrix)
+            loss_batch.backward()
+            recommender_optim.step()
 
-        """Train sampler network"""
-        sampler_optim.zero_grad()
-        with torch.no_grad():
-            reward_batch, _, _, _ = recommender(batch_data)
+        for i in range(config.s_step):
+            """Train sampler network"""
+            sampler_optim.zero_grad()
+            # selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix)
+            # batch_data['neg_i_id'] = selected_neg_items
+            with torch.no_grad():
+                reward_batch, _, _, _ = recommender(batch_data, edge_matrix)
+    
+            epoch_reward += torch.sum(reward_batch)
+            reward_batch -= avg_reward
 
-        epoch_reward += torch.sum(reward_batch)
-        reward_batch = reward_batch -avg_reward
-        reinforce_loss = torch.sum(reward_batch * selected_neg_prob)
-        reinforce_loss.backward()
-        sampler_optim.step()
-
+            reinforce_loss = torch.sum(reward_batch * selected_neg_prob)
+            # reinforce_loss.backward(retain_graph=True)
+            reinforce_loss.backward()
+            sampler_optim.step()
+    
         """record loss in an epoch"""
         loss += loss_batch
         base_loss += base_loss_batch
@@ -119,26 +186,42 @@ def train_one_epoch(recommender, sampler, train_loader, recommender_optim, sampl
     
     return loss, base_loss, reg_loss, avg_reward
 
-def build_adj(n_nodes, edge_threshold, graph):
-    """build adjacency matrix, using random items as padding"""
-    adj_matrix = torch.zeros(n_nodes, edge_threshold)
+def build_sampler_graph(n_nodes, edge_threshold, graph):
+    adj_matrix = torch.zeros(n_nodes, edge_threshold*2)
+    edge_matrix = torch.zeros(n_nodes, edge_threshold)
 
-    for node in tqdm(graph.nodes, ascii=True, desc="Building adj matrix"):
+    """sample neighbors for each node"""
+    for node in tqdm(graph.nodes, ascii=True, desc="Build sampler matrix"):
         neighbors = list(graph.neighbors(node))
-        padding_size = edge_threshold - len(neighbors)
-        for _ in range(padding_size):
-            neg_id = random.randint(CKG.item_range[0], CKG.item_range[1])
-            neighbors.append(neg_id)
-        neighbors = torch.tensor(neighbors, dtype=torch.long)
-        adj_matrix[node] = neighbors
+        if len(neighbors) >= edge_threshold:
+            sampled_edge = random.sample(neighbors, edge_threshold)
+            edges = deepcopy(sampled_edge)
+        else:
+            neg_id = random.sample(range(CKG.item_range[0], CKG.item_range[1]+1), edge_threshold-len(neighbors))
+            node_id = [node]*(edge_threshold-len(neighbors))
+            sampled_edge = neighbors + neg_id
+            edges = neighbors + node_id
+        sampled_edge += random.sample(range(CKG.item_range[0], CKG.item_range[1]+1), edge_threshold)
+        adj_matrix[node] = torch.tensor(sampled_edge, dtype=torch.long)
+        edge_matrix[node] = torch.tensor(edges, dtype=torch.long)
 
     if torch.cuda.is_available():
         adj_matrix = adj_matrix.cuda().long()
+        edge_matrix = edge_matrix.cuda().long()
 
-    return adj_matrix
+    return adj_matrix, edge_matrix
 
 
-def train(train_loader, test_loader, data_config, args_config):
+def train(train_loader, 
+          test_loader, 
+          sampler_loader, 
+          data_config, 
+          args_config):
+    """
+        The main function
+        For data preprocessing, train recommender and sampler iteratively
+    """
+
     """build training set"""
     train_mat = deepcopy(CKG.train_user_dict)
 
@@ -147,10 +230,10 @@ def train(train_loader, test_loader, data_config, args_config):
 
     train_data = torch.zeros(num_user, num_true)
 
-    """get padded tensor for ground true"""
+    """get padded tensor for training data"""
     for i in train_mat:
         true_list = train_mat[i]
-        true_list += [0] * (num_true - len(true_list))
+        true_list += [-1] * (num_true - len(true_list))
         true_list = torch.tensor(true_list, dtype=torch.long)
         train_data[i] = true_list
 
@@ -158,20 +241,24 @@ def train(train_loader, test_loader, data_config, args_config):
     params = {}
     print('\ncopying ckg graph...')
     graph = deepcopy(CKG.ckg_graph)
+    print("copy cke graph done...")
 
-    """remove node with more than edge_threshold neighbor"""
-    general_node = []
-    for node in graph.nodes:
-        if(len(set(graph.neighbors(node)))) > args_config.edge_threshold:
-            general_node.append(node)
-    graph.remove_nodes_from(general_node)
+    # general_node = []
+    # for node in graph.nodes:
+    #     if(len(set(graph.neighbors(node)))) > args_config.filter_edges:
+    #         general_node.append(node)
+    # graph.remove_nodes_from(general_node)
 
-    edges = torch.tensor(list(graph.edges), dtype=torch.long)
+    # edges = torch.tensor(list(graph.edges), dtype=torch.long)
+    # edges = edges[:, :2]
+    # print("*"*50)
+    # print(edges.size())
+
     if torch.cuda.is_available():
-        edges = edges.cuda()
+        # edges = edges.cuda()
         train_data = train_data.long().cuda()
 
-    params["edges"] = edges
+    # params["edges"] = edges
     params["n_users"] = CKG.n_users
     params["n_relations"] = CKG.n_relations
     n_nodes = CKG.entity_range[1] + 1
@@ -184,14 +271,14 @@ def train(train_loader, test_loader, data_config, args_config):
         data_config["all_embed"] = all_embed
     
     if args_config.pretrained_s:
-        paras = pickle.load(open(args_config.data_path + 'model/kg_embedding.pickle', 'rb'))
-        kg_embedding = torch.from_numpy(paras)
+        paras = torch.load('weights/KGAT_embedding.ckpt')
+        kg_embedding = paras["all_embed"]
         if torch.cuda.is_available():
             kg_embedding = kg_embedding.cuda()
         params["kg_embedding"] = kg_embedding
 
     data_config['n_nodes'] = n_nodes
-    data_config['edges'] = edges
+    # data_config['edges'] = edges
     """Build Sampler and Recommender"""
     if args_config.recommender == "MF":
         recommender = MF(data_config=data_config, args_config=args_config)
@@ -225,17 +312,30 @@ def train(train_loader, test_loader, data_config, args_config):
     for epoch in range(args_config.epoch):
         """build adjacency matrix"""
         if epoch % args_config.adj_epoch == 0:
-            adj_matrix = build_adj(n_nodes, args_config.edge_threshold, graph)
-
+            adj_matrix, edge_matrix = build_sampler_graph(n_nodes, args_config.edge_threshold, graph)
+        
         cur_epoch = epoch + 1
         t1 = time()
         if args_config.sampler == "KGPolicy":
-            loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler, train_loader, recommender_optimer, sampler_optimer, adj_matrix, train_data, cur_epoch, avg_reward)
+            loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, 
+                                                                    sampler, 
+                                                                    train_loader, 
+                                                                    recommender_optimer, 
+                                                                    sampler_optimer, 
+                                                                    adj_matrix, 
+                                                                    edge_matrix, 
+                                                                    train_data, 
+                                                                    cur_epoch, 
+                                                                    avg_reward, 
+                                                                    args_config)
         elif args_config.sampler == "DNS": 
-            loss, base_loss, reg_loss, avg_reward = train_dns_epoch(recommender, train_loader, recommender_optimer, cur_epoch)
+            loss, base_loss, reg_loss = train_dns_epoch(recommender, train_loader, recommender_optimer, cur_epoch)
+        elif args_config.sampler == "Random":
+            loss, base_loss, reg_loss = train_random_epoch(recommender, train_loader, recommender_optimer, cur_epoch)
 
         """Test"""
         if cur_epoch % args_config.show_step == 0:
+            save_model('recommender.ckpt', recommender, args_config)
             with torch.no_grad():
                 t2 = time()
                 ret = test(recommender, test_loader)
@@ -259,7 +359,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
             cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['recall'][0], cur_best_pre_0,
                                                                         stopping_step, expected_order='acc',
-                                                                        flag_step=30)
+                                                                        flag_step=64)
 
             # *********************************************************
             # early stopping when cur_best_pre_0 is decreasing for ten successive steps.
@@ -281,6 +381,17 @@ def train(train_loader, test_loader, data_config, args_config):
                   '\t'.join(['%.5f' % r for r in ndcgs[idx]]))
     print(final_perf)
 
+def save_model(file_name, model, config):
+    if not os.path.isdir(config.out_dir):
+        os.mkdir(config.out_dir)
+    
+    model_file = Path(config.out_dir + file_name)
+    model_file.touch(exist_ok=True)
+
+    print("Saving model...")
+    torch.save(model.state_dict(), model_file)
+
+
 if __name__ == '__main__':
     # fix the random seed.
     seed = 2020
@@ -296,6 +407,6 @@ if __name__ == '__main__':
     data_config = {'n_users': CKG.n_users,'n_items': CKG.n_items,
                    'n_relations': CKG.n_relations + 2, 'n_entities': CKG.n_entities, }
 
-    train_loader, test_loader = build_loader(args_config=args_config)
-    train(train_loader=train_loader, test_loader=test_loader,
+    train_loader, test_loader, sampler_loader = build_loader(args_config=args_config)
+    train(train_loader=train_loader, test_loader=test_loader, sampler_loader = sampler_loader,
           data_config=data_config, args_config=args_config)

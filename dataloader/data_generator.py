@@ -89,4 +89,9 @@ class Test_Generator(Dataset):
 
         return batch_data
 
+class Sampler_Generator(Train_Generator):
+    def __init__(self, args_config):
+        super().__init__(args_config)
 
+    def __len__(self):
+        return args_config.s_step*args_config.batch_size

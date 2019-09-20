@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import torch_geometric as geometric 
 import networkx as nx
 
+from tqdm import tqdm
 
 class GraphConv(nn.Module):
     """
@@ -15,31 +16,19 @@ class GraphConv(nn.Module):
     def __init__(self, in_channel, out_channel, config):
         super(GraphConv, self).__init__()
         self.config = config
-
-        if config.gcn == "sage":
-            self.conv1 = geometric.nn.SAGEConv(in_channel, out_channel)
-        elif config.gcn == "sg":
-            self.conv1 = geometric.nn.SGConv(in_channel, out_channel)
-        elif config.gcn == "appnp":
-            self.conv1 = geometric.nn.APPNP(K=10, alpha=0.1)
-        elif config.gcn == "rgcn":
-            self.conv1 = geometric.nn.RGCNConv(in_channel, out_channel, num_relations=config.num_relations, num_bases=5)
-
-        self.batch_norm = nn.BatchNorm1d(out_channel)
+        
+        self.conv1 = geometric.nn.SAGEConv(in_channel[0], out_channel[0])
+        self.conv2 = geometric.nn.SAGEConv(in_channel[1], out_channel[1])
 
     def forward(self, x, edge_indices, r_index):
-        if self.config.gcn == "appnp":
-            x = self.conv1(x, edge_indices)
-            x = F.leaky_relu(x)
-        elif self.config.gcn == "rgcn":
-            x = self.conv1(x, edge_indices, r_index)
-            x = F.leaky_relu(x)
-            x = self.batch_norm(x)
-            x = F.dropout(x)
-        else:
-            x = self.conv1(x, edge_indices)
-            x = F.leaky_relu(x)
-            x = self.batch_norm(x)
+        x = self.conv1(x, edge_indices)
+        x = F.leaky_relu(x)
+        x = F.dropout(x)
+
+        x = self.conv2(x, edge_indices)
+        x = F.dropout(x)
+        x = F.normalize(x)
+        
         return x
 
 
@@ -60,7 +49,7 @@ class KGPolicy(nn.Module):
         config.num_relations = params["n_relations"]
         self.gcn = GraphConv(in_channel, out_channel, config)
 
-        self.edges = params["edges"]
+        # self.edges = params["edges"]
         self.n_entities = params["n_nodes"]
         self.item_range = params["item_range"]
         self.input_channel = in_channel
@@ -72,17 +61,19 @@ class KGPolicy(nn.Module):
             kg_embedding = self.params["kg_embedding"]
             entity_embedding = nn.Parameter(kg_embedding)
         else:
-            entity_embedding = nn.Parameter(torch.FloatTensor(n_entities, input_channel))
+            entity_embedding = nn.Parameter(torch.FloatTensor(n_entities, input_channel[0]))
             nn.init.xavier_uniform_(entity_embedding)
 
         if self.config.freeze_s:
             entity_embedding.requires_grad = False
         return entity_embedding
 
-    def forward(self, data_batch, adj_matrix):
+    def forward(self, data_batch, adj_matrix, edge_matrix):
         users = data_batch["u_id"]
         pos = data_batch["pos_i_id"]
         neg = data_batch["neg_i_id"]
+
+        self.edges = self.build_edge(edge_matrix)
 
         """sample candidate negative items based on knowledge graph"""
         one_hop, _ = self.kg_step(pos, users, adj_matrix, step=1)
@@ -102,12 +93,24 @@ class KGPolicy(nn.Module):
             good_neg, good_logits = self.dis_step(self.dis, candidate_neg, users, logits)
         
         return good_neg, good_logits
+    
+    def build_edge(self, adj_matrix):
+        """build edges based on adj_matrix"""
+        sample_edge = self.config.edge_threshold
+        edge_matrix = adj_matrix
+
+        n_node = edge_matrix.size(0)
+        node_index = torch.arange(n_node, device=edge_matrix.device).unsqueeze(1).repeat(1, sample_edge).flatten()
+        neighbor_index = edge_matrix.flatten()
+        edges = torch.cat((node_index.unsqueeze(1), neighbor_index.unsqueeze(1)), dim=1)        
+        return edges
 
     def kg_step(self, pos, user, adj_matrix, step):
         x = self.entity_embedding
         edges = self.edges
+
         """knowledge graph embedding using gcn"""
-        gcn_embedding = self.gcn(x, edges[:, :2].t().contiguous(), edges[:, 2].t().contiguous().long())
+        gcn_embedding = self.gcn(x, edges.t().contiguous(), edges.t().contiguous().long())
 
         """use knowledge embedding to decide candidate negative items"""
         u_e = gcn_embedding[user]

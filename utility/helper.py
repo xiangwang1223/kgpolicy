@@ -3,21 +3,19 @@ __author__ = "xiangwang"
 import os
 import re
 
+
 def txt2list(file_src):
     orig_file = open(file_src, "r")
     lines = orig_file.readlines()
     return lines
-
 
 def ensureDir(dir_path):
     d = os.path.dirname(dir_path)
     if not os.path.exists(d):
         os.makedirs(d)
 
-
 def uni2str(unicode_str):
     return str(unicode_str.encode('ascii', 'ignore')).replace('\n', '').strip()
-
 
 def hasNumbers(inputString):
     return bool(re.search(r'\d', inputString))

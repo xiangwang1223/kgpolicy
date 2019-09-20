@@ -22,7 +22,6 @@ class MF(nn.Module):
         all_embed = nn.Parameter(torch.FloatTensor(self.n_users + self.n_items, self.emb_size))
         
         if self.args_config.resume:
-            ui = self.n_users + self.n_items
             all_embed.data = self.data_config["all_embed"]
         else:
             nn.init.xavier_uniform_(all_embed)
@@ -38,14 +37,15 @@ class MF(nn.Module):
         pos_e = self.all_embed[pos_item]
         neg_e = self.all_embed[neg_item]
 
+        reg_loss = self._l2_loss(u_e) + self._l2_loss(pos_e) + self._l2_loss(neg_e)
+        reg_loss = self.regs * reg_loss
+
+        # u_e, pos_e, neg_e = F.normalize(u_e), F.normalize(pos_e), F.normalize(neg_e)
         pos_scores = torch.sum(u_e * pos_e, dim=1)
         neg_scores = torch.sum(u_e * neg_e, dim=1)
 
         bpr_loss = torch.log(torch.sigmoid(pos_scores - neg_scores))
         bpr_loss = -torch.mean(bpr_loss)
-
-        reg_loss = self._l2_loss(u_e) + self._l2_loss(pos_e) + self._l2_loss(neg_e)
-        reg_loss = self.regs * reg_loss
 
         loss = bpr_loss + reg_loss
 
@@ -72,7 +72,6 @@ class MF(nn.Module):
         ranking = ranking.squeeze()
 
         return ranking
-
 
     def __str__(self):
         return "recommender using BPRMF, embedding size {}".format(self.args_config.emb_size)

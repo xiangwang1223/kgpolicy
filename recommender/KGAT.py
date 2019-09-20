@@ -15,9 +15,12 @@ class GraphConv(nn.Module):
         self.in_channel = in_channel
         self.out_channel = out_channel
         self.conv1 = geometric.nn.GATConv(in_channel, out_channel)
+        self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x, edge_indices):
         x = self.conv1(x, edge_indices)
+        x = self.dropout(x)
+        x = F.normalize(x)
         return x
 
 class KGAT(nn.Module):
@@ -28,7 +31,6 @@ class KGAT(nn.Module):
         self.n_users = data_config['n_users']
         self.n_items = data_config['n_items']
         self.n_nodes = data_config['n_nodes']
-        self.edges = data_config['edges']
 
         """set input and output channel manually"""
         input_channel = 64
@@ -52,24 +54,30 @@ class KGAT(nn.Module):
             nn.init.xavier_uniform_(all_embed)
 
         return all_embed
+    
+    def build_edge(self, adj_matrix):
+        """build edges based on adj_matrix"""
+        sample_edge = self.args_config.edge_threshold
+        edge_matrix = adj_matrix
 
-    def forward(self, data_batch):
-        user = data_batch['u_id']
-        pos_item = data_batch['pos_i_id']
-        neg_item = data_batch['neg_i_id']
+        n_node = edge_matrix.size(0)
+        node_index = torch.arange(n_node, device=edge_matrix.device).unsqueeze(1).repeat(1, sample_edge).flatten()
+        neighbor_index = edge_matrix.flatten()
+        edges = torch.cat((node_index.unsqueeze(1), neighbor_index.unsqueeze(1)), dim=1)        
+        return edges
 
-        u_e = self.all_embed[user]
-        pos_e = self.all_embed[pos_item]
-        neg_e = self.all_embed[neg_item]
+    def forward(self, data_batch, edges_matrix):
+        user, pos_item, neg_item = data_batch['u_id'], data_batch['pos_i_id'], data_batch['neg_i_id']
+        u_e, pos_e, neg_e = self.all_embed[user], self.all_embed[pos_item], self.all_embed[neg_item]
 
+        edges = self.build_edge(edges_matrix)
         x = self.all_embed
-        edges = self.edges
+        gcn_embedding = self.gcn(x, edges.t().contiguous())
 
-        gcn_embedding = self.gcn(x, edges[:, :2].t().contiguous())
-
-        u_e_ = gcn_embedding[user]
-        pos_e_ = gcn_embedding[pos_item]
-        neg_e_ = gcn_embedding[neg_item]
+        u_e_, pos_e_, neg_e_ = gcn_embedding[user], gcn_embedding[pos_item], gcn_embedding[neg_item]
+        if self.args_config.normalize:
+            u_e, pos_e, neg_e = F.normalize(u_e), F.normalize(pos_e), F.normalize(neg_e)
+            u_e_, pos_e_, neg_e_ = F.normalize(u_e_), F.normalize(pos_e_), F.normalize(neg_e_)
         
         u_e = torch.cat([u_e, u_e_], dim=1)
         pos_e = torch.cat([pos_e, pos_e_], dim=1)
@@ -128,8 +136,7 @@ class KGAT(nn.Module):
 
         return ranking
 
-
     def __str__(self):
-        return "recommender using BPRMF, embedding size {}".format(self.args_config.emb_size)
+        return "recommender using KGAT, embedding size {}".format(self.args_config.emb_size)
 
 

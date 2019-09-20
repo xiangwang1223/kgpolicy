@@ -109,3 +109,4 @@ venv.bak/
 # output file and log file
 output/
 *.log
+weight/

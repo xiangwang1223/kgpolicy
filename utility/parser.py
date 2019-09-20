@@ -28,7 +28,7 @@ def parse_args():
                         help='number of negative items in list')
 
     # ------------------------- experimental settings specific for recommender --------------------------------------------
-    parser.add_argument('--recommender', type=str, default="KGAT",
+    parser.add_argument('--recommender', type=str, default="MF",
                         help="type for recommender")
     parser.add_argument('--reward_type', nargs='?', default='pure',
                         help='reward function type: pure, prod')
@@ -44,9 +44,9 @@ def parse_args():
                         help='policy function type: uj, uij')
     parser.add_argument('--edge_threshold', type=int, default=8,
                         help='edge threshold to filter knowledge graph')
-    parser.add_argument('--in_channel', type=str, default='64', 
+    parser.add_argument('--in_channel', type=str, default='[64, 32]', 
                         help='input channels for gcn')    
-    parser.add_argument('--out_channel', type=str, default='64', 
+    parser.add_argument('--out_channel', type=str, default='[32, 64]', 
                         help='output channels for gcn')
     parser.add_argument('--num_sample', type=int, default=4,
                         help='number fo samples from gcn')
@@ -54,13 +54,11 @@ def parse_args():
                         help="load pretrained sampler data or not")
     parser.add_argument('--k_step', type=int, default=2,
                         help="k step from current positive items")
-    parser.add_argument('--gcn', type=str, default="sage",
-                        help="graph convolutional type")
 
     # ------------------------- experimental settings specific for training --------------------------------------------
     parser.add_argument('--batch_size', type=int, default=1024,
                         help='batch size for training.')
-    parser.add_argument('--test_batch_size', type=int, default=2048,
+    parser.add_argument('--test_batch_size', type=int, default=1024,
                         help='batch size for test')
     parser.add_argument('--num_threads', type=int, default=4,
                         help='number of threads.')
@@ -78,6 +76,16 @@ def parse_args():
                         help="freeze parameters of recommender or not")
     parser.add_argument('--model_path', type=str, default='model/best_yelp.ckpt',
                         help="path for pretrain model")
+    parser.add_argument('--normalize', type=bool, default=False,
+                        help="get normalize after embedding")
+    parser.add_argument("--out_dir", type=str, default='./weights/',
+                        help='output directory for model')
+    parser.add_argument("--s_step", type=int, default=1,
+                        help="k step for sampler")
+    parser.add_argument("--r_step", type=int, default=1,
+                        help="k step for recommender")
+    parser.add_argument("--filter_edges", type=int, default=8192,
+                        help="threshold for filtering node")
 
     # ------------------------- experimental settings specific for testing ---------------------------------------------
     parser.add_argument('--Ks', nargs='?', default='[20, 40, 60, 80, 100]',
