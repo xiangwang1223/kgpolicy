@@ -1,9 +1,10 @@
 import collections
 import numpy as np
 import networkx as nx
+import pickle
+import os
 from tqdm import tqdm
 from utility.helper import ensureDir
-import pickle
 from time import time
 
 class CF_Data(object):
@@ -158,23 +159,21 @@ class CKG_Data(CF_Data, KG_Data):
         CF_Data.__init__(self, args_config=args_config)
         KG_Data.__init__(self, args_config=args_config, entity_start_id=self.n_users, relation_start_id=2)
         self.args_config = args_config
-        self.ckg_graph = self._combine_cf_kg()
 
-    def _load_ckg(self, file_name):
-        try:
-            pickle_file = open(file_name, 'rb')
-            ckg_graph = pickle.load(pickle_file)
-            pickle_file.close()
-            print('load collaborative knowledge graph done.')
-        except Exception:
-            t1 = time()
-            ckg_graph = self._combine_cf_kg()
-            ensureDir(file_name)
-            dump_file = open(file_name, 'wb')
-            pickle.dump(ckg_graph, dump_file)
+        """load ckg_graph if pickle exist"""
+        ckg_file = "./output/ckg.pickle"
+        if os.path.isfile(ckg_file):
+            print("begin to load collaborative knowledge graph...")
+            self.ckg_graph = pickle.load(open(ckg_file, 'rb'))
+        else:
+            self.ckg_graph = self._combine_cf_kg()
+            if os.path.isdir("./output") == False:
+                os.mkdir("./output")
+            print("begin to dump collaborative knowledge graph...")
+            dump_file = open("./output/ckg.pickle", 'wb')
+            pickle.dump(self.ckg_graph, dump_file)
             dump_file.close()
-            print('dump collaborative knowledge graph done @%.4fs.' % (time()-t1))
-        return ckg_graph
+            print("dump collaborative knowledge graph done...")
 
     def _combine_cf_kg(self):
         kg_mat = self.kg_data

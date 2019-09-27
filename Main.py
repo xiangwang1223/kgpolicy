@@ -1,7 +1,7 @@
 import os
 import sys
-from time import time
 import random
+from time import time
 from pathlib import Path
 
 import torch
@@ -25,18 +25,11 @@ from recommender.KGAT import KGAT
 from sampler.KGPolicy_Sampler import KGPolicy
 
 
-def train_dns_epoch(recommender, 
-                    train_loader, 
-                    recommender_optim, 
-                    cur_epoch):
-    """
-        train a dns epoch, when sampler is set to dns
-    """
-
+def train_dns_epoch(recommender, train_loader, recommender_optim, cur_epoch):
     loss, base_loss, reg_loss = 0, 0, 0
 
     tbar = tqdm(train_loader, ascii=True)
-    for _, batch_data in enumerate(tbar):
+    for batch_data in tbar:
         tbar.set_description('Epoch {}'.format(cur_epoch))
 
         if torch.cuda.is_available():
@@ -72,18 +65,11 @@ def train_dns_epoch(recommender,
 
     return base_loss, base_loss, reg_loss
 
-def train_random_epoch(recommender, 
-                       train_loader, 
-                       recommender_optim, 
-                       cur_epoch):
-    """
-        train a random epoch, when sampler is set to random sampler
-    """
-
+def train_random_epoch(recommender, train_loader, recommender_optim, cur_epoch):
     loss, base_loss, reg_loss = 0, 0, 0
 
     tbar = tqdm(train_loader, ascii=True)
-    for _, batch_data in enumerate(tbar):
+    for batch_data in tbar:
         tbar.set_description('Epoch {}'.format(cur_epoch))
 
         if torch.cuda.is_available():
@@ -104,76 +90,63 @@ def train_random_epoch(recommender,
 
     return base_loss, base_loss, reg_loss
 
-
-def train_one_epoch(recommender, 
-                    sampler, 
+def train_one_epoch(recommender, sampler, 
                     train_loader, 
-                    recommender_optim, 
-                    sampler_optim, 
-                    adj_matrix, 
-                    edge_matrix, 
+                    recommender_optim, sampler_optim, 
+                    adj_matrix, edge_matrix, 
                     train_data, 
                     cur_epoch, 
                     avg_reward, 
                     config):
-    """
-        train one epoch, when sampler is set to KGPolicy
-    """
+
     loss, base_loss, reg_loss = 0, 0, 0
     epoch_reward = 0
 
     """Train one epoch"""
     tbar = tqdm(train_loader, ascii=True)
     num_batch = len(train_loader)
-    for _, batch_data in enumerate(tbar):
+    for batch_data in tbar:
         tbar.set_description('Epoch {}'.format(cur_epoch))
 
         if torch.cuda.is_available():
             batch_data = {k: v.cuda(non_blocking=True) for k, v in batch_data.items()}
 
-        for i in range(config.r_step):
-            """Train recommender using negtive item provided by sampler"""
-            recommender_optim.zero_grad()
-            selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix, edge_matrix)
-            """filter items from trainset"""
-            users = batch_data["u_id"]
-            neg = batch_data["neg_i_id"]
+        """Train recommender using negtive item provided by sampler"""
+        recommender_optim.zero_grad()
+        selected_neg_items, _ = sampler(batch_data, adj_matrix, edge_matrix)
+        users = batch_data["u_id"]
+        neg = batch_data["neg_i_id"]
+        pos = batch_data["pos_i_id"]
 
-            """if output from sampler includes training items, replace it with goodneg"""
-            train_set = train_data[users]
-            in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
-            # print("#"*20)
-            # print(torch.sum(in_train))
-            selected_neg_items[in_train] = neg[in_train]
+        """if output from sampler includes training items, replace it with goodneg"""
+        train_set = train_data[users]
+        in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
+        selected_neg_items[in_train] = neg[in_train]
 
-            # --- for case study ---
-            # print("positive items \n", batch_data['pos_i_id'][:20])
-            # print("random sampled negative sample \n ", batch_data['neg_i_id'][:20])
-            # print("sample from KG-Policy \n", selected_neg_items[:20])
+        """Train recommender with sampled negative items"""
+        if config.recommender == "KGAT":
+            loss_batch, base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items, edge_matrix)
+        elif config.recommender == "MF":
+            loss_batch, base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items)
+        else:
+            raise Exception('Model has not been implemented')
 
-            """Train recommender with sampled negative items"""
-            batch_data['neg'] = batch_data['neg_i_id']
-            batch_data['neg_i_id'] = selected_neg_items
+        loss_batch.backward()
+        recommender_optim.step()
 
-            _, loss_batch, base_loss_batch, reg_loss_batch = recommender(batch_data, edge_matrix)
-            loss_batch.backward()
-            recommender_optim.step()
+        """Train sampler network"""
+        sampler_optim.zero_grad()
+        selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix, edge_matrix)
+        
+        with torch.no_grad():
+            reward_batch = recommender.get_reward(users, pos, selected_neg_items)
 
-        for i in range(config.s_step):
-            """Train sampler network"""
-            sampler_optim.zero_grad()
-            # selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix)
-            # batch_data['neg_i_id'] = selected_neg_items
-            with torch.no_grad():
-                reward_batch, _, _, _ = recommender(batch_data, edge_matrix)
-    
-            epoch_reward += torch.sum(reward_batch)
-            reward_batch -= avg_reward
+        epoch_reward += torch.sum(reward_batch)
+        reward_batch -= avg_reward
 
-            reinforce_loss = torch.sum(reward_batch * selected_neg_prob)
-            # reinforce_loss.backward(retain_graph=True)
-            reinforce_loss.backward()
-            sampler_optim.step()
+        reinforce_loss = torch.sum(reward_batch * selected_neg_prob)
+        reinforce_loss.backward()
+        sampler_optim.step()
     
         """record loss in an epoch"""
         loss += loss_batch
@@ -181,7 +154,6 @@ def train_one_epoch(recommender,
         reg_loss += reg_loss_batch
     
     avg_reward = epoch_reward / num_batch
-    
     print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n Reward: {4:4f}".format(cur_epoch, loss, base_loss, reg_loss, avg_reward))
     
     return loss, base_loss, reg_loss, avg_reward
@@ -212,15 +184,7 @@ def build_sampler_graph(n_nodes, edge_threshold, graph):
     return adj_matrix, edge_matrix
 
 
-def train(train_loader, 
-          test_loader, 
-          sampler_loader, 
-          data_config, 
-          args_config):
-    """
-        The main function
-        For data preprocessing, train recommender and sampler iteratively
-    """
+def train(train_loader, test_loader, data_config, args_config):
 
     """build training set"""
     train_mat = deepcopy(CKG.train_user_dict)
@@ -239,46 +203,23 @@ def train(train_loader,
 
     """preprocessing ckg graph"""
     params = {}
-    print('\ncopying ckg graph...')
-    graph = deepcopy(CKG.ckg_graph)
-    print("copy cke graph done...")
 
-    # general_node = []
-    # for node in graph.nodes:
-    #     if(len(set(graph.neighbors(node)))) > args_config.filter_edges:
-    #         general_node.append(node)
-    # graph.remove_nodes_from(general_node)
+    ckg_file = "./output/ckg.pickle"
+    graph = pickle.load(open(ckg_file, 'rb'))
 
-    # edges = torch.tensor(list(graph.edges), dtype=torch.long)
-    # edges = edges[:, :2]
-    # print("*"*50)
-    # print(edges.size())
-
-    if torch.cuda.is_available():
-        # edges = edges.cuda()
-        train_data = train_data.long().cuda()
-
-    # params["edges"] = edges
     params["n_users"] = CKG.n_users
     params["n_relations"] = CKG.n_relations
     n_nodes = CKG.entity_range[1] + 1
     params["n_nodes"] = n_nodes
     params["item_range"] = CKG.item_range
 
-    if args_config.resume:
+    if args_config.pretrain_r:
         paras = torch.load(args_config.data_path + args_config.model_path)
         all_embed = torch.cat((paras["user_para"], paras["item_para"]))
         data_config["all_embed"] = all_embed
     
-    if args_config.pretrained_s:
-        paras = torch.load('weights/KGAT_embedding.ckpt')
-        kg_embedding = paras["all_embed"]
-        if torch.cuda.is_available():
-            kg_embedding = kg_embedding.cuda()
-        params["kg_embedding"] = kg_embedding
-
     data_config['n_nodes'] = n_nodes
-    # data_config['edges'] = edges
+
     """Build Sampler and Recommender"""
     if args_config.recommender == "MF":
         recommender = MF(data_config=data_config, args_config=args_config)
@@ -292,6 +233,8 @@ def train(train_loader,
         pass    
 
     if torch.cuda.is_available():
+        train_data = train_data.long().cuda()
+
         if args_config.sampler == "KGPolicy":
             sampler = sampler.cuda()
             print('\nSet sampler as: {}'.format(str(sampler)))
@@ -317,13 +260,10 @@ def train(train_loader,
         cur_epoch = epoch + 1
         t1 = time()
         if args_config.sampler == "KGPolicy":
-            loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, 
-                                                                    sampler, 
+            loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler, 
                                                                     train_loader, 
-                                                                    recommender_optimer, 
-                                                                    sampler_optimer, 
-                                                                    adj_matrix, 
-                                                                    edge_matrix, 
+                                                                    recommender_optimer, sampler_optimer, 
+                                                                    adj_matrix, edge_matrix, 
                                                                     train_data, 
                                                                     cur_epoch, 
                                                                     avg_reward, 
@@ -347,15 +287,14 @@ def train(train_loader,
             ndcg_loger.append(ret['ndcg'])
             hit_loger.append(ret['hit_ratio'])
 
-            if args_config.verbose > 0:
-                perf_str = 'Evaluate[%.1fs]: \n    recall=[%.5f, %.5f, %.5f, %.5f, %.5f], ' \
-                           '\n precision=[%.5f, %.5f, %.5f, %.5f, %.5f], \n       hit=[%.5f, %.5f, %.5f, %.5f, %.5f], \n      ndcg=[%.5f, %.5f, %.5f, %.5f, %.5f] \n' % \
-                           (t3 - t2,
-                            ret['recall'][0], ret['recall'][1], ret['recall'][2], ret['recall'][3], ret['recall'][4],
-                            ret['precision'][0], ret['precision'][1], ret['precision'][2], ret['precision'][3], ret['precision'][4],
-                            ret['hit_ratio'][0],ret['hit_ratio'][1], ret['hit_ratio'][2], ret['hit_ratio'][3], ret['hit_ratio'][4],
-                            ret['ndcg'][0], ret['ndcg'][1], ret['ndcg'][2], ret['ndcg'][3], ret['ndcg'][4])
-                print(perf_str)
+            perf_str = 'Evaluate[%.1fs]: \n    recall=[%.5f, %.5f, %.5f, %.5f, %.5f], ' \
+                       '\n precision=[%.5f, %.5f, %.5f, %.5f, %.5f], \n       hit=[%.5f, %.5f, %.5f, %.5f, %.5f], \n      ndcg=[%.5f, %.5f, %.5f, %.5f, %.5f] \n' % \
+                       (t3 - t2,
+                        ret['recall'][0], ret['recall'][1], ret['recall'][2], ret['recall'][3], ret['recall'][4],
+                        ret['precision'][0], ret['precision'][1], ret['precision'][2], ret['precision'][3], ret['precision'][4],
+                        ret['hit_ratio'][0],ret['hit_ratio'][1], ret['hit_ratio'][2], ret['hit_ratio'][3], ret['hit_ratio'][4],
+                        ret['ndcg'][0], ret['ndcg'][1], ret['ndcg'][2], ret['ndcg'][3], ret['ndcg'][4])
+            print(perf_str)
 
             cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['recall'][0], cur_best_pre_0,
                                                                         stopping_step, expected_order='acc',
@@ -407,6 +346,6 @@ if __name__ == '__main__':
     data_config = {'n_users': CKG.n_users,'n_items': CKG.n_items,
                    'n_relations': CKG.n_relations + 2, 'n_entities': CKG.n_entities, }
 
-    train_loader, test_loader, sampler_loader = build_loader(args_config=args_config)
-    train(train_loader=train_loader, test_loader=test_loader, sampler_loader = sampler_loader,
+    train_loader, test_loader = build_loader(args_config=args_config)
+    train(train_loader=train_loader, test_loader=test_loader,
           data_config=data_config, args_config=args_config)

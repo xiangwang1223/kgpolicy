@@ -57,7 +57,7 @@ class KGPolicy(nn.Module):
 
     def _initialize_weight(self, n_entities, input_channel):
         """entities includes items and other entities in knowledge graph"""
-        if self.config.pretrained_s:
+        if self.config.pretrain_s:
             kg_embedding = self.params["kg_embedding"]
             entity_embedding = nn.Parameter(kg_embedding)
         else:

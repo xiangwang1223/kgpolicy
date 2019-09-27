@@ -39,7 +39,6 @@ class KGAT(nn.Module):
 
         self.emb_size = args_config.emb_size
         self.regs = eval(args_config.regs)
-        self.reward_type = args_config.reward_type
 
         self.all_embed = self._init_weight()
 
@@ -47,7 +46,7 @@ class KGAT(nn.Module):
         all_embed = nn.Parameter(torch.FloatTensor(self.n_nodes, self.emb_size), requires_grad=True)
         ui = self.n_users + self.n_items
         
-        if self.args_config.resume:
+        if self.args_config.pretrain_r:
             nn.init.xavier_uniform_(all_embed)
             all_embed.data[:ui] = self.data_config["all_embed"]
         else:
@@ -66,8 +65,7 @@ class KGAT(nn.Module):
         edges = torch.cat((node_index.unsqueeze(1), neighbor_index.unsqueeze(1)), dim=1)        
         return edges
 
-    def forward(self, data_batch, edges_matrix):
-        user, pos_item, neg_item = data_batch['u_id'], data_batch['pos_i_id'], data_batch['neg_i_id']
+    def forward(self, user, pos_item, neg_item, edges_matrix):
         u_e, pos_e, neg_e = self.all_embed[user], self.all_embed[pos_item], self.all_embed[neg_item]
 
         edges = self.build_edge(edges_matrix)
@@ -75,9 +73,6 @@ class KGAT(nn.Module):
         gcn_embedding = self.gcn(x, edges.t().contiguous())
 
         u_e_, pos_e_, neg_e_ = gcn_embedding[user], gcn_embedding[pos_item], gcn_embedding[neg_item]
-        if self.args_config.normalize:
-            u_e, pos_e, neg_e = F.normalize(u_e), F.normalize(pos_e), F.normalize(neg_e)
-            u_e_, pos_e_, neg_e_ = F.normalize(u_e_), F.normalize(pos_e_), F.normalize(neg_e_)
         
         u_e = torch.cat([u_e, u_e_], dim=1)
         pos_e = torch.cat([pos_e, pos_e_], dim=1)
@@ -97,23 +92,18 @@ class KGAT(nn.Module):
 
         loss = bpr_loss + reg_loss
 
+        return loss, bpr_loss, reg_loss
+
+    def get_reward(self, users, pos_items, neg_items):
+        u_e = self.all_embed[users]
+        pos_e = self.all_embed[pos_items]
+        neg_e = self.all_embed[neg_items]
+
+        neg_scores = torch.sum(u_e * neg_e, dim=1)
         ij = torch.sum(neg_e*pos_e, dim=1)
         reward = neg_scores + ij
 
-        # Defining reward function as:
-        # reward = 0.
-        # if self.reward_type == 'pure':
-        #     # ... (1) consider the value of negative scores; the larger, the better;
-        # reward = -torch.log(torch.sigmoid(-neg_scores))
-        # elif self.reward_type == 'prod':
-        #     # ... (2) consider additionally the inner product of negative and positive embeddings; the larger, the better;
-        #     tmp = torch.sum(pos_e * neg_e, dim=1)
-        #     reward = -torch.log(torch.sigmoid(-neg_scores)) + tmp
-        # else:
-        #     # ... (1) by default set as 'pure'.
-        #     reward = -torch.log(torch.sigmoid(-neg_scores))
-
-        return reward, loss, bpr_loss, reg_loss
+        return reward
 
     def _l2_loss(self, t):
         return torch.sum(t ** 2) / 2

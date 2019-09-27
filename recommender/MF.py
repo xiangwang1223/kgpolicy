@@ -14,24 +14,20 @@ class MF(nn.Module):
 
         self.emb_size = args_config.emb_size
         self.regs = eval(args_config.regs)
-        self.reward_type = args_config.reward_type
 
         self.all_embed = self._init_weight()
 
     def _init_weight(self):
         all_embed = nn.Parameter(torch.FloatTensor(self.n_users + self.n_items, self.emb_size))
         
-        if self.args_config.resume:
+        if self.args_config.pretrain_r:
             all_embed.data = self.data_config["all_embed"]
         else:
             nn.init.xavier_uniform_(all_embed)
 
         return all_embed
 
-    def forward(self, data_batch):
-        user = data_batch['u_id']
-        pos_item = data_batch['pos_i_id']
-        neg_item = data_batch['neg_i_id']
+    def forward(self, user, pos_item, neg_item):
 
         u_e = self.all_embed[user]
         pos_e = self.all_embed[pos_item]
@@ -40,7 +36,6 @@ class MF(nn.Module):
         reg_loss = self._l2_loss(u_e) + self._l2_loss(pos_e) + self._l2_loss(neg_e)
         reg_loss = self.regs * reg_loss
 
-        # u_e, pos_e, neg_e = F.normalize(u_e), F.normalize(pos_e), F.normalize(neg_e)
         pos_scores = torch.sum(u_e * pos_e, dim=1)
         neg_scores = torch.sum(u_e * neg_e, dim=1)
 
@@ -49,10 +44,19 @@ class MF(nn.Module):
 
         loss = bpr_loss + reg_loss
 
-        ij = torch.sum(neg_e*pos_e, dim=1)
+        return loss, bpr_loss, reg_loss
+
+    def get_reward(self, user, pos_item, neg_item):
+        u_e = self.all_embed[user]
+        pos_e = self.all_embed[pos_item]
+        neg_e = self.all_embed[neg_item]
+
+        neg_scores = torch.sum(u_e * neg_e, dim=1)
+        ij = torch.sum(neg_e * pos_e, dim=1)
+
         reward = neg_scores + ij
 
-        return reward, loss, bpr_loss, reg_loss
+        return reward
 
     def _l2_loss(self, t):
         return torch.sum(t ** 2) / 2
