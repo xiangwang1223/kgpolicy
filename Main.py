@@ -25,7 +25,8 @@ from recommender.KGAT import KGAT
 from sampler.KGPolicy_Sampler import KGPolicy
 
 
-def train_dns_epoch(recommender, train_loader, recommender_optim, cur_epoch):
+def train_dns_epoch(recommender, train_loader,
+                    recommender_optim, cur_epoch):
     loss, base_loss, reg_loss = 0, 0, 0
 
     tbar = tqdm(train_loader, ascii=True)
@@ -65,7 +66,8 @@ def train_dns_epoch(recommender, train_loader, recommender_optim, cur_epoch):
 
     return base_loss, base_loss, reg_loss
 
-def train_random_epoch(recommender, train_loader, recommender_optim, cur_epoch):
+def train_random_epoch(recommender, train_loader, 
+                       recommender_optim, cur_epoch):
     loss, base_loss, reg_loss = 0, 0, 0
 
     tbar = tqdm(train_loader, ascii=True)
@@ -183,9 +185,7 @@ def build_sampler_graph(n_nodes, edge_threshold, graph):
 
     return adj_matrix, edge_matrix
 
-
 def train(train_loader, test_loader, data_config, args_config):
-
     """build training set"""
     train_mat = deepcopy(CKG.train_user_dict)
 
@@ -214,6 +214,7 @@ def train(train_loader, test_loader, data_config, args_config):
     params["item_range"] = CKG.item_range
 
     if args_config.pretrain_r:
+        print("\nLoad model from {}".format(args_config.data_path + args_config.model_path))
         paras = torch.load(args_config.data_path + args_config.model_path)
         all_embed = torch.cat((paras["user_para"], paras["item_para"]))
         data_config["all_embed"] = all_embed
@@ -242,7 +243,7 @@ def train(train_loader, test_loader, data_config, args_config):
         print('Set recommender as: {}'.format(str(recommender)))
 
     """Build Optimizer"""
-    recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.rlr)
+    recommender_optimer = torch.optim.SGD(recommender.parameters(), lr=args_config.rlr)
 
     """Initialize Best Hit Rate"""
     loss_loger, pre_loger, rec_loger, ndcg_loger, hit_loger = [], [], [], [], []
@@ -269,10 +270,11 @@ def train(train_loader, test_loader, data_config, args_config):
                                                                     avg_reward, 
                                                                     args_config)
         elif args_config.sampler == "DNS": 
-            loss, base_loss, reg_loss = train_dns_epoch(recommender, train_loader, recommender_optimer, cur_epoch)
+            loss, base_loss, reg_loss = train_dns_epoch(recommender, train_loader,
+                                                        recommender_optimer, cur_epoch)
         elif args_config.sampler == "Random":
-            loss, base_loss, reg_loss = train_random_epoch(recommender, train_loader, recommender_optimer, cur_epoch)
-
+            loss, base_loss, reg_loss = train_random_epoch(recommender, train_loader, 
+                                                           recommender_optimer, cur_epoch)
         """Test"""
         if cur_epoch % args_config.show_step == 0:
             save_model('recommender.ckpt', recommender, args_config)
@@ -298,7 +300,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
             cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['recall'][0], cur_best_pre_0,
                                                                         stopping_step, expected_order='acc',
-                                                                        flag_step=64)
+                                                                        flag_step=args_config.flag_step)
 
             # *********************************************************
             # early stopping when cur_best_pre_0 is decreasing for ten successive steps.

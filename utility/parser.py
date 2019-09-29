@@ -6,7 +6,7 @@ def parse_args():
     # ------------------------- experimental settings specific for data set --------------------------------------------
     parser.add_argument('--data_path', nargs='?', default='../Data/',
                         help='Input data path.')
-    parser.add_argument('--dataset', nargs='?', default='yelp2018',
+    parser.add_argument('--dataset', nargs='?', default='last-fm',
                         help='Choose a dataset.')
     parser.add_argument('--emb_size', type=int, default=64,
                         help='Embedding size.')
@@ -30,16 +30,16 @@ def parse_args():
                         help="type for sampler")
     parser.add_argument('--edge_threshold', type=int, default=8,
                         help='edge threshold to filter knowledge graph')
+    parser.add_argument('--num_sample', type=int, default=4,
+                        help='number fo samples from gcn')
+    parser.add_argument('--k_step', type=int, default=2,
+                        help="k step from current positive items")
     parser.add_argument('--in_channel', type=str, default='[64, 32]', 
                         help='input channels for gcn')    
     parser.add_argument('--out_channel', type=str, default='[32, 64]', 
                         help='output channels for gcn')
-    parser.add_argument('--num_sample', type=int, default=4,
-                        help='number fo samples from gcn')
     parser.add_argument('--pretrain_s', type=bool, default=False,
                         help="load pretrained sampler data or not")
-    parser.add_argument('--k_step', type=int, default=2,
-                        help="k step from current positive items")
 
     # ------------------------- experimental settings specific for training --------------------------------------------
     parser.add_argument('--batch_size', type=int, default=1024,
@@ -58,14 +58,12 @@ def parse_args():
                         help="use pretrained model or not")
     parser.add_argument('--freeze_s', type=bool, default=False,
                         help="freeze parameters of recommender or not")
-    parser.add_argument('--model_path', type=str, default='model/best_yelp.ckpt',
+    parser.add_argument('--model_path', type=str, default='model/best_fm.ckpt',
                         help="path for pretrain model")
     parser.add_argument("--out_dir", type=str, default='./weights/',
                         help='output directory for model')
-    parser.add_argument("--s_step", type=int, default=1,
-                        help="k step for sampler")
-    parser.add_argument("--r_step", type=int, default=1,
-                        help="k step for recommender")
+    parser.add_argument("--flag_step", type=int, default=32,
+                        help="early stop steps")
 
     # ------------------------- experimental settings specific for testing ---------------------------------------------
     parser.add_argument('--Ks', nargs='?', default='[20, 40, 60, 80, 100]',

@@ -49,7 +49,6 @@ class KGPolicy(nn.Module):
         config.num_relations = params["n_relations"]
         self.gcn = GraphConv(in_channel, out_channel, config)
 
-        # self.edges = params["edges"]
         self.n_entities = params["n_nodes"]
         self.item_range = params["item_range"]
         self.input_channel = in_channel
@@ -136,10 +135,8 @@ class KGPolicy(nn.Module):
             nid = indices[:,:n]
         row_id = torch.arange(batch_size, device=logits.device).unsqueeze(1)
 
-        candidate_neg = one_hop[row_id, nid]
-        candidate_neg = candidate_neg.squeeze()
-        candidate_logits = torch.log(logits[row_id, nid])
-        candidate_logits = candidate_logits.squeeze()
+        candidate_neg = one_hop[row_id, nid].squeeze()
+        candidate_logits = torch.log(logits[row_id, nid]).squeeze()
 
         return candidate_neg, candidate_logits
 
