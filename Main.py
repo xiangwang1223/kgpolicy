@@ -229,7 +229,7 @@ def train(train_loader, test_loader, data_config, args_config):
     
     if args_config.sampler == "KGPolicy":
         sampler = KGPolicy(recommender, params, args_config)
-        sampler_optimer = torch.optim.SGD(sampler.parameters(), lr=args_config.slr)
+        sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.slr)
     elif args_config.sampler == "DNS":
         pass    
 
@@ -243,7 +243,7 @@ def train(train_loader, test_loader, data_config, args_config):
         print('Set recommender as: {}'.format(str(recommender)))
 
     """Build Optimizer"""
-    recommender_optimer = torch.optim.SGD(recommender.parameters(), lr=args_config.rlr)
+    recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.rlr)
 
     """Initialize Best Hit Rate"""
     loss_loger, pre_loger, rec_loger, ndcg_loger, hit_loger = [], [], [], [], []

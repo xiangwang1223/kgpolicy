@@ -28,9 +28,9 @@ def parse_args():
     # ------------------------- experimental settings specific for sampler --------------------------------------------
     parser.add_argument("--sampler", type=str, default="KGPolicy",
                         help="type for sampler")
-    parser.add_argument('--edge_threshold', type=int, default=8,
+    parser.add_argument('--edge_threshold', type=int, default=16,
                         help='edge threshold to filter knowledge graph')
-    parser.add_argument('--num_sample', type=int, default=4,
+    parser.add_argument('--num_sample', type=int, default=8,
                         help='number fo samples from gcn')
     parser.add_argument('--k_step', type=int, default=2,
                         help="k step from current positive items")

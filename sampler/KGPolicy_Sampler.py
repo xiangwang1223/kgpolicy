@@ -63,6 +63,9 @@ class KGPolicy(nn.Module):
             entity_embedding = nn.Parameter(torch.FloatTensor(n_entities, input_channel[0]))
             nn.init.xavier_uniform_(entity_embedding)
 
+        self.w1 = nn.Parameter(torch.FloatTensor(2*input_channel[0], input_channel[0]))
+        nn.init.xavier_uniform_(self.w1)
+
         if self.config.freeze_s:
             entity_embedding.requires_grad = False
         return entity_embedding
@@ -112,18 +115,30 @@ class KGPolicy(nn.Module):
         gcn_embedding = self.gcn(x, edges.t().contiguous(), edges.t().contiguous().long())
 
         """use knowledge embedding to decide candidate negative items"""
-        u_e = gcn_embedding[user]
-        u_e = u_e.unsqueeze(dim=2)
-        pos_e = gcn_embedding[pos]
-        pos_e = pos_e.unsqueeze(dim=1)
+        # u_e = gcn_embedding[user]
+        # u_e = u_e.unsqueeze(dim=2)
+        # pos_e = gcn_embedding[pos]
+        # pos_e = pos_e.unsqueeze(dim=1)
         
+        # one_hop = adj_matrix[pos]
+        # i_e = gcn_embedding[one_hop]
+
+        # p_entity = pos_e * i_e 
+        # p = torch.matmul(p_entity, u_e)
+        # p = p.squeeze()
+        # logits = F.softmax(p+1, dim=1) + 1e-3
+
+        u_e = gcn_embedding[user]
+        pos_e = gcn_embedding[pos]
+
         one_hop = adj_matrix[pos]
         i_e = gcn_embedding[one_hop]
 
-        p_entity = pos_e * i_e 
-        p = torch.matmul(p_entity, u_e)
-        p = p.squeeze()
-        logits = F.softmax(p+1, dim=1) + 1e-3
+        upos_e = torch.cat((u_e, pos_e), dim=-1)
+        u_pos_w1 = torch.tanh(torch.matmul(upos_e, self.w1))
+        u_pos_w1 = u_pos_w1.unsqueeze(dim=2)
+        p = torch.matmul(i_e, u_pos_w1).squeeze()
+        logits = F.softmax(p, dim=1)
 
         """sample negative items based on logits"""
         batch_size = logits.size(0)
