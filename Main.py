@@ -107,7 +107,8 @@ def train_one_epoch(recommender, sampler,
     """Train one epoch"""
     tbar = tqdm(train_loader, ascii=True)
     num_batch = len(train_loader)
-    for batch_data in tbar:
+    for i, batch_data in enumerate(tbar):
+        
         tbar.set_description('Epoch {}'.format(cur_epoch))
 
         if torch.cuda.is_available():
@@ -229,7 +230,7 @@ def train(train_loader, test_loader, data_config, args_config):
     
     if args_config.sampler == "KGPolicy":
         sampler = KGPolicy(recommender, params, args_config)
-        sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.slr)
+        sampler_optimer = torch.optim.SGD(sampler.parameters(), lr=args_config.slr)
     elif args_config.sampler == "DNS":
         pass    
 
@@ -256,7 +257,7 @@ def train(train_loader, test_loader, data_config, args_config):
     for epoch in range(args_config.epoch):
         """build adjacency matrix"""
         if epoch % args_config.adj_epoch == 0:
-            adj_matrix, edge_matrix = build_sampler_graph(n_nodes, args_config.edge_threshold, graph)
+           adj_matrix, edge_matrix = build_sampler_graph(n_nodes, args_config.edge_threshold, graph)
         
         cur_epoch = epoch + 1
         t1 = time()

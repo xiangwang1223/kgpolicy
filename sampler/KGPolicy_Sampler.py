@@ -63,9 +63,6 @@ class KGPolicy(nn.Module):
             entity_embedding = nn.Parameter(torch.FloatTensor(n_entities, input_channel[0]))
             nn.init.xavier_uniform_(entity_embedding)
 
-        self.w1 = nn.Parameter(torch.FloatTensor(2*input_channel[0], input_channel[0]))
-        nn.init.xavier_uniform_(self.w1)
-
         if self.config.freeze_s:
             entity_embedding.requires_grad = False
         return entity_embedding
@@ -76,23 +73,31 @@ class KGPolicy(nn.Module):
         neg = data_batch["neg_i_id"]
 
         self.edges = self.build_edge(edge_matrix)
+        
+        batch_size = users.size(0)
+        good_logits = torch.ones(batch_size, device=users.device)
 
         """sample candidate negative items based on knowledge graph"""
-        one_hop, _ = self.kg_step(pos, users, adj_matrix, step=1)
+        one_hop, logits = self.kg_step(pos, users, adj_matrix, step=1)
+        good_logits *= logits
+
         candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
 
         """replace other entities using random negative items"""
         candidate_neg = self.filter_entity(candidate_neg)
 
         """using discriminator to further choose qualified negative items"""
-        good_neg, good_logits = self.dis_step(self.dis, candidate_neg, users, logits)
+        good_neg, logits = self.dis_step(self.dis, candidate_neg, users, logits)
+        good_logits *= logits
 
         """repeat above steps to k times"""
         for s in range(self.config.k_step - 1):
-            one_hop, _ = self.kg_step(good_neg, users, adj_matrix, step=1)
+            one_hop, logits = self.kg_step(good_neg, users, adj_matrix, step=1)
+            good_logits *= logits
             candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
             candidate_neg = self.filter_entity(candidate_neg)
-            good_neg, good_logits = self.dis_step(self.dis, candidate_neg, users, logits)
+            good_neg, logits = self.dis_step(self.dis, candidate_neg, users, logits)
+            good_logits *= logits
         
         return good_neg, good_logits
     
@@ -115,30 +120,18 @@ class KGPolicy(nn.Module):
         gcn_embedding = self.gcn(x, edges.t().contiguous(), edges.t().contiguous().long())
 
         """use knowledge embedding to decide candidate negative items"""
-        # u_e = gcn_embedding[user]
-        # u_e = u_e.unsqueeze(dim=2)
-        # pos_e = gcn_embedding[pos]
-        # pos_e = pos_e.unsqueeze(dim=1)
-        
-        # one_hop = adj_matrix[pos]
-        # i_e = gcn_embedding[one_hop]
-
-        # p_entity = pos_e * i_e 
-        # p = torch.matmul(p_entity, u_e)
-        # p = p.squeeze()
-        # logits = F.softmax(p+1, dim=1) + 1e-3
-
         u_e = gcn_embedding[user]
+        u_e = u_e.unsqueeze(dim=2)
         pos_e = gcn_embedding[pos]
-
+        pos_e = pos_e.unsqueeze(dim=1)
+        
         one_hop = adj_matrix[pos]
         i_e = gcn_embedding[one_hop]
 
-        upos_e = torch.cat((u_e, pos_e), dim=-1)
-        u_pos_w1 = torch.tanh(torch.matmul(upos_e, self.w1))
-        u_pos_w1 = u_pos_w1.unsqueeze(dim=2)
-        p = torch.matmul(i_e, u_pos_w1).squeeze()
-        logits = F.softmax(p, dim=1)
+        p_entity = pos_e * i_e 
+        p = torch.matmul(p_entity, u_e)
+        p = p.squeeze()
+        logits = F.softmax(p+1, dim=1) + 1e-3
 
         """sample negative items based on logits"""
         batch_size = logits.size(0)

@@ -6,11 +6,11 @@ def parse_args():
     # ------------------------- experimental settings specific for data set --------------------------------------------
     parser.add_argument('--data_path', nargs='?', default='../Data/',
                         help='Input data path.')
-    parser.add_argument('--dataset', nargs='?', default='last-fm',
+    parser.add_argument('--dataset', nargs='?', default='amazon-book',
                         help='Choose a dataset.')
     parser.add_argument('--emb_size', type=int, default=64,
                         help='Embedding size.')
-    parser.add_argument('--regs', nargs='?', default='1e-5',
+    parser.add_argument('--regs', nargs='?', default='1e-6',
                         help='Regularization for user and item embeddings.')
     parser.add_argument('--gpu_id', type=int, default=0,
                         help='gpu id')
@@ -32,7 +32,7 @@ def parse_args():
                         help='edge threshold to filter knowledge graph')
     parser.add_argument('--num_sample', type=int, default=8,
                         help='number fo samples from gcn')
-    parser.add_argument('--k_step', type=int, default=2,
+    parser.add_argument('--k_step', type=int, default=1,
                         help="k step from current positive items")
     parser.add_argument('--in_channel', type=str, default='[64, 32]', 
                         help='input channels for gcn')    
@@ -58,7 +58,7 @@ def parse_args():
                         help="use pretrained model or not")
     parser.add_argument('--freeze_s', type=bool, default=False,
                         help="freeze parameters of recommender or not")
-    parser.add_argument('--model_path', type=str, default='model/best_fm.ckpt',
+    parser.add_argument('--model_path', type=str, default='model/best_ab.ckpt',
                         help="path for pretrain model")
     parser.add_argument("--out_dir", type=str, default='./weights/',
                         help='output directory for model')
