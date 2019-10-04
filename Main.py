@@ -24,74 +24,6 @@ from recommender.MF import MF
 from recommender.KGAT import KGAT
 from sampler.KGPolicy_Sampler import KGPolicy
 
-
-def train_dns_epoch(recommender, train_loader,
-                    recommender_optim, cur_epoch):
-    loss, base_loss, reg_loss = 0, 0, 0
-
-    tbar = tqdm(train_loader, ascii=True)
-    for batch_data in tbar:
-        tbar.set_description('Epoch {}'.format(cur_epoch))
-
-        if torch.cuda.is_available():
-            data_batch = {k: v.cuda(non_blocking=True) for k, v in batch_data.items()}
-
-        recommender_optim.zero_grad()
-
-        with torch.no_grad():
-            users = batch_data["u_id"]
-            negs = batch_data["neg_i_ids"]
-            ranking = recommender.rank(users, negs)
-
-        _, indices = torch.sort(ranking, descending=True)
-        indices = indices[:, 0]
-
-        batch_size = negs.size(0)
-
-        row_id = torch.arange(batch_size, device=negs.device).unsqueeze(1)
-        indices = indices.unsqueeze(1)
-        good_neg = negs[row_id, indices].squeeze()
-
-        batch_data["neg_i_id"] = good_neg
-        _, loss_batch, gmf_batch_loss, reg_batch_loss = recommender(batch_data)
-
-        loss_batch.backward()
-        recommender_optim.step()
-
-        loss += loss_batch
-        base_loss += gmf_batch_loss
-        reg_loss += reg_batch_loss
-
-    print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n".format(cur_epoch, loss, base_loss, reg_loss))
-
-    return base_loss, base_loss, reg_loss
-
-def train_random_epoch(recommender, train_loader, 
-                       recommender_optim, cur_epoch):
-    loss, base_loss, reg_loss = 0, 0, 0
-
-    tbar = tqdm(train_loader, ascii=True)
-    for batch_data in tbar:
-        tbar.set_description('Epoch {}'.format(cur_epoch))
-
-        if torch.cuda.is_available():
-            data_batch = {k: v.cuda(non_blocking=True) for k, v in batch_data.items()}
-        
-        recommender_optim.zero_grad()
-
-        _, loss_batch, gmf_batch_loss, reg_batch_loss = recommender(batch_data)
-
-        loss_batch.backward()
-        recommender_optim.step()
-
-        loss += loss_batch
-        base_loss += gmf_batch_loss
-        reg_loss += reg_batch_loss
-
-    print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n".format(cur_epoch, loss, base_loss, reg_loss))
-
-    return base_loss, base_loss, reg_loss
-
 def train_one_epoch(recommender, sampler, 
                     train_loader, 
                     recommender_optim, sampler_optim, 
@@ -116,15 +48,13 @@ def train_one_epoch(recommender, sampler,
 
         """Train recommender using negtive item provided by sampler"""
         recommender_optim.zero_grad()
-        selected_neg_items, _ = sampler(batch_data, adj_matrix, edge_matrix)
+
         users = batch_data["u_id"]
         neg = batch_data["neg_i_id"]
         pos = batch_data["pos_i_id"]
-
-        """if output from sampler includes training items, replace it with goodneg"""
         train_set = train_data[users]
-        in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
-        selected_neg_items[in_train] = neg[in_train]
+
+        selected_neg_items, _ = sampler(batch_data, adj_matrix, edge_matrix, train_set)
 
         """Train recommender with sampled negative items"""
         if config.recommender == "KGAT":
@@ -139,7 +69,7 @@ def train_one_epoch(recommender, sampler,
 
         """Train sampler network"""
         sampler_optim.zero_grad()
-        selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix, edge_matrix)
+        selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix, edge_matrix, train_set)
         
         with torch.no_grad():
             reward_batch = recommender.get_reward(users, pos, selected_neg_items)
@@ -228,23 +158,19 @@ def train(train_loader, test_loader, data_config, args_config):
     elif args_config.recommender == "KGAT":
         recommender = KGAT(data_config=data_config, args_config=args_config)
     
-    if args_config.sampler == "KGPolicy":
-        sampler = KGPolicy(recommender, params, args_config)
-        sampler_optimer = torch.optim.SGD(sampler.parameters(), lr=args_config.slr)
-    elif args_config.sampler == "DNS":
-        pass    
+    sampler = KGPolicy(recommender, params, args_config)
 
     if torch.cuda.is_available():
         train_data = train_data.long().cuda()
 
-        if args_config.sampler == "KGPolicy":
-            sampler = sampler.cuda()
-            print('\nSet sampler as: {}'.format(str(sampler)))
+        sampler = sampler.cuda()
+        print('\nSet sampler as: {}'.format(str(sampler)))
         recommender = recommender.cuda()
         print('Set recommender as: {}'.format(str(recommender)))
 
     """Build Optimizer"""
     recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.rlr)
+    sampler_optimer = torch.optim.SGD(sampler.parameters(), lr=args_config.slr)
 
     """Initialize Best Hit Rate"""
     loss_loger, pre_loger, rec_loger, ndcg_loger, hit_loger = [], [], [], [], []
@@ -261,21 +187,15 @@ def train(train_loader, test_loader, data_config, args_config):
         
         cur_epoch = epoch + 1
         t1 = time()
-        if args_config.sampler == "KGPolicy":
-            loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler, 
-                                                                    train_loader, 
-                                                                    recommender_optimer, sampler_optimer, 
-                                                                    adj_matrix, edge_matrix, 
-                                                                    train_data, 
-                                                                    cur_epoch, 
-                                                                    avg_reward, 
-                                                                    args_config)
-        elif args_config.sampler == "DNS": 
-            loss, base_loss, reg_loss = train_dns_epoch(recommender, train_loader,
-                                                        recommender_optimer, cur_epoch)
-        elif args_config.sampler == "Random":
-            loss, base_loss, reg_loss = train_random_epoch(recommender, train_loader, 
-                                                           recommender_optimer, cur_epoch)
+        loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler, 
+                                                                train_loader, 
+                                                                recommender_optimer, sampler_optimer, 
+                                                                adj_matrix, edge_matrix, 
+                                                                train_data, 
+                                                                cur_epoch, 
+                                                                avg_reward, 
+                                                                args_config)
+
         """Test"""
         if cur_epoch % args_config.show_step == 0:
             save_model('recommender.ckpt', recommender, args_config)

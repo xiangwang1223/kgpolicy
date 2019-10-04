@@ -32,7 +32,7 @@ def parse_args():
                         help='edge threshold to filter knowledge graph')
     parser.add_argument('--num_sample', type=int, default=8,
                         help='number fo samples from gcn')
-    parser.add_argument('--k_step', type=int, default=1,
+    parser.add_argument('--k_step', type=int, default=2,
                         help="k step from current positive items")
     parser.add_argument('--in_channel', type=str, default='[64, 32]', 
                         help='input channels for gcn')    

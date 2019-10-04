@@ -29,15 +29,15 @@ class MF(nn.Module):
 
     def forward(self, user, pos_item, neg_item):
 
-        u_e = self.all_embed[user]
-        pos_e = self.all_embed[pos_item]
+        u_e = self.all_embed[user].unsqueeze(dim=1)
+        pos_e = self.all_embed[pos_item].unsqueeze(dim=1)
         neg_e = self.all_embed[neg_item]
 
         reg_loss = self._l2_loss(u_e) + self._l2_loss(pos_e) + self._l2_loss(neg_e)
         reg_loss = self.regs * reg_loss
 
-        pos_scores = torch.sum(u_e * pos_e, dim=1)
-        neg_scores = torch.sum(u_e * neg_e, dim=1)
+        pos_scores = torch.sum(u_e * pos_e, dim=-1)
+        neg_scores = torch.sum(u_e * neg_e, dim=-1)
 
         bpr_loss = torch.log(torch.sigmoid(pos_scores - neg_scores))
         bpr_loss = -torch.mean(bpr_loss)
@@ -47,16 +47,28 @@ class MF(nn.Module):
         return loss, bpr_loss, reg_loss
 
     def get_reward(self, user, pos_item, neg_item):
-        u_e = self.all_embed[user]
-        pos_e = self.all_embed[pos_item]
+        u_e = self.all_embed[user].unsqueeze(dim=1)
+        pos_e = self.all_embed[pos_item].unsqueeze(dim=1)
         neg_e = self.all_embed[neg_item]
 
-        neg_scores = torch.sum(u_e * neg_e, dim=1)
-        ij = torch.sum(neg_e * pos_e, dim=1)
+        neg_scores = torch.sum(u_e * neg_e, dim=-1)
+        ij = torch.sum(neg_e * pos_e, dim=-1)
 
         reward = neg_scores + ij
 
-        return reward
+        gamma = 0.99
+
+        k = reward.size(1)
+        batch_size = reward.size(0)
+
+        R = torch.zeros(batch_size, device=u_e.device)
+        decay_reward = torch.zeros(reward.size(), device=u_e.device)
+        """iterate through [k-1, 0) to get decay_reward"""
+        for r in range(k-1,-1,-1):
+            R = gamma*R + reward[:,r]
+            decay_reward[:, r] = R 
+
+        return decay_reward
 
     def _l2_loss(self, t):
         return torch.sum(t ** 2) / 2
