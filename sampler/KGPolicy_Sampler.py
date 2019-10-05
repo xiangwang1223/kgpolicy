@@ -27,7 +27,7 @@ class GraphConv(nn.Module):
 
         x = self.conv2(x, edge_indices)
         x = F.dropout(x)
-        x = F.normalize(x)
+        # x = F.normalize(x)
         
         return x
 
@@ -75,43 +75,37 @@ class KGPolicy(nn.Module):
         self.edges = self.build_edge(edge_matrix)
         
         batch_size = users.size(0)
-        good_logits = torch.zeros(batch_size, device=users.device)
-
-        """sample candidate negative items based on knowledge graph"""
-        one_hop, logits = self.kg_step(pos, users, adj_matrix, step=1)
-        good_logits += logits
-
-        candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
-
-        """replace other entities using random negative items"""
-        candidate_neg = self.filter_entity(candidate_neg)
-
-        """using discriminator to further choose qualified negative items"""
-        good_neg, logits = self.dis_step(self.dis, candidate_neg, users, logits)
-
-        good_neg = self.filter_trainset(good_neg, train_set, neg)
-
-        good_logits += logits
-        good_neg = good_neg.unsqueeze(dim=1)
-        good_logits = good_logits.unsqueeze(dim=1)
-
-        """repeat above steps to k times"""
-        for s in range(self.config.k_step - 1):
-            more_logits = torch.zeros(batch_size, device=users.device)
-            one_hop, logits = self.kg_step(good_neg.squeeze(), users, adj_matrix, step=1)
-            more_logits += logits
-            candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
-            candidate_neg = self.filter_entity(candidate_neg)
-            more_neg, logits = self.dis_step(self.dis, candidate_neg, users, logits)
-            more_neg = self.filter_trainset(more_neg, train_set, neg)
-            more_logits += logits
-            more_neg = more_neg.unsqueeze(dim=1)
-            more_logits = more_logits.unsqueeze(dim=1)
-
-            good_neg = torch.cat([good_neg, more_neg], dim=-1)
-            good_logits = torch.cat([good_logits, more_logits], dim=-1)
         
-        return good_neg, good_logits
+        final_negs = torch.tensor([], device=pos.device)
+        final_logits = torch.tensor([], device=pos.device)
+
+        for _ in range(self.config.k_step):
+            good_logits = torch.zeros(batch_size, device=users.device)
+            
+            """sample candidate negative items based on knowledge graph"""
+            one_hop, logits = self.kg_step(pos, users, adj_matrix, step=1)
+            good_logits += logits
+
+            candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
+
+            """replace other entities using random negative items"""
+            candidate_neg = self.filter_entity(candidate_neg)
+
+            """using discriminator to further choose qualified negative items"""
+            good_neg, logits = self.dis_step(self.dis, candidate_neg, users, logits)
+
+            good_neg = self.filter_trainset(good_neg, train_set, neg)
+
+            good_logits += logits
+
+            pos = good_neg
+            good_neg = good_neg.unsqueeze(dim=1)
+            good_logits = good_logits.unsqueeze(dim=1)
+
+            final_negs = torch.cat([final_negs.long(), good_neg], dim=-1)
+            final_logits = torch.cat([final_logits, good_logits], dim=-1)
+       
+        return final_negs, final_logits
 
     def filter_trainset(self, negs, train_set, random_set):
         in_train = torch.sum(negs.unsqueeze(1)==train_set.long(), dim=1).byte()
@@ -156,7 +150,7 @@ class KGPolicy(nn.Module):
             nid = torch.argmax(logits, dim=1, keepdim=True)
         else:
             n = self.config.num_sample
-            _, indices = torch.sort(logits)
+            _, indices = torch.sort(logits, descending=True)
             nid = indices[:,:n]
         row_id = torch.arange(batch_size, device=logits.device).unsqueeze(1)
 

@@ -170,7 +170,7 @@ def train(train_loader, test_loader, data_config, args_config):
 
     """Build Optimizer"""
     recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.rlr)
-    sampler_optimer = torch.optim.SGD(sampler.parameters(), lr=args_config.slr)
+    sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.slr)
 
     """Initialize Best Hit Rate"""
     loss_loger, pre_loger, rec_loger, ndcg_loger, hit_loger = [], [], [], [], []
