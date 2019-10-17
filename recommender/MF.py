@@ -56,19 +56,7 @@ class MF(nn.Module):
 
         reward = neg_scores + ij
 
-        gamma = 0.99
-
-        k = reward.size(1)
-        batch_size = reward.size(0)
-
-        R = torch.zeros(batch_size, device=u_e.device)
-        decay_reward = torch.zeros(reward.size(), device=u_e.device)
-        """iterate through [k-1, 0) to get decay_reward"""
-        for r in range(k-1,-1,-1):
-            R = gamma*R + reward[:,r]
-            decay_reward[:, r] = R 
-
-        return decay_reward
+        return reward
 
     def _l2_loss(self, t):
         return torch.sum(t ** 2) / 2

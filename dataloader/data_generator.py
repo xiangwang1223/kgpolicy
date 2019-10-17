@@ -4,23 +4,21 @@ from torch.utils.data import Dataset
 import random
 import scipy.sparse as sp
 
-from utility.test_model import args_config, CKG
-
 from time import time
 
 
 class Train_Generator(Dataset):
-    def __init__(self, args_config):
+    def __init__(self, args_config, graph):
         self.args_config = args_config
-        # self.sp_adj = self._generate_sp_adj()
+        self.graph = graph
 
-        self.user_dict = CKG.train_user_dict
-        self.exist_users = list(CKG.exist_users)
-        self.low_item_index = CKG.item_range[0]
-        self.high_item_index = CKG.item_range[1]
+        self.user_dict = graph.train_user_dict
+        self.exist_users = list(graph.exist_users)
+        self.low_item_index = graph.item_range[0]
+        self.high_item_index = graph.item_range[1]
 
     def __len__(self):
-        return CKG.n_train
+        return self.graph.n_train
 
     def __getitem__(self, index):
         out_dict = {}
@@ -58,14 +56,6 @@ class Train_Generator(Dataset):
                 break
         return neg_i_id
 
-    def _generate_sp_adj(self):
-        train_data = CKG.train_data
-        rows = list(train_data[:, 0])
-        cols = list(train_data[:, 1])
-        vals = [1.] * len(rows)
-        n_all = CKG.n_users + CKG.n_items
-        return sp.coo_matrix((vals, (rows, cols)), shape=(n_all, n_all))
-
     def _generate_sp_mask(self, uid):
         mask_adj = self.sp_adj.tolil()[uid]
         mask_adj = mask_adj.tocoo()
@@ -74,9 +64,9 @@ class Train_Generator(Dataset):
         return (rows, cols)
 
 class Test_Generator(Dataset):
-    def __init__(self, args_config):
+    def __init__(self, args_config, graph):
         self.args_config = args_config
-        self.users_to_test = list(CKG.test_user_dict.keys())
+        self.users_to_test = list(graph.test_user_dict.keys())
 
     def __len__(self):
         return len(self.users_to_test)

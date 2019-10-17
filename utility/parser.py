@@ -1,4 +1,3 @@
-#!/usr/local/bin/bash
 import argparse
 
 def parse_args():
@@ -6,31 +5,27 @@ def parse_args():
     # ------------------------- experimental settings specific for data set --------------------------------------------
     parser.add_argument('--data_path', nargs='?', default='../Data/',
                         help='Input data path.')
-    parser.add_argument('--dataset', nargs='?', default='amazon-book',
+    parser.add_argument('--dataset', nargs='?', default='last-fm',
                         help='Choose a dataset.')
     parser.add_argument('--emb_size', type=int, default=64,
                         help='Embedding size.')
-    parser.add_argument('--regs', nargs='?', default='1e-6',
+    parser.add_argument('--regs', nargs='?', default='1e-5',
                         help='Regularization for user and item embeddings.')
     parser.add_argument('--gpu_id', type=int, default=0,
                         help='gpu id')
-    parser.add_argument('--k_neg', type=int, default=8,
+    parser.add_argument('--k_neg', type=int, default=1,
                         help='number of negative items in list')
 
     # ------------------------- experimental settings specific for recommender --------------------------------------------
-    parser.add_argument('--recommender', type=str, default="MF",
-                        help="type for recommender")
     parser.add_argument('--slr', type=float, default=0.0001,
                         help='Learning rate for sampler.')
     parser.add_argument('--rlr', type=float, default=0.0001,
                         help='Learning rate recommender.')
 
     # ------------------------- experimental settings specific for sampler --------------------------------------------
-    parser.add_argument("--sampler", type=str, default="KGPolicy",
-                        help="type for sampler")
-    parser.add_argument('--edge_threshold', type=int, default=16,
+    parser.add_argument('--edge_threshold', type=int, default=8,
                         help='edge threshold to filter knowledge graph')
-    parser.add_argument('--num_sample', type=int, default=8,
+    parser.add_argument('--num_sample', type=int, default=4,
                         help='number fo samples from gcn')
     parser.add_argument('--k_step', type=int, default=2,
                         help="k step from current positive items")
@@ -54,11 +49,11 @@ def parse_args():
                         help='test step.')
     parser.add_argument('--adj_epoch', type=int, default=1,
                         help='build adj matrix per _ epoch')
-    parser.add_argument('--pretrain_r', type=bool, default=False,
+    parser.add_argument('--pretrain_r', type=bool, default=True,
                         help="use pretrained model or not")
     parser.add_argument('--freeze_s', type=bool, default=False,
                         help="freeze parameters of recommender or not")
-    parser.add_argument('--model_path', type=str, default='model/best_ab.ckpt',
+    parser.add_argument('--model_path', type=str, default='model/best_fm.ckpt',
                         help="path for pretrain model")
     parser.add_argument("--out_dir", type=str, default='./weights/',
                         help='output directory for model')

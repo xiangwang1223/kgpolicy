@@ -1,23 +1,13 @@
 import torch
-from tqdm import tqdm
 
+from tqdm import tqdm
 import heapq
 import multiprocessing
-from .metrics import *
-from utility import metrics
+import numpy as np
 
-from utility.parser import parse_args
-from dataloader.data_processor import CKG_Data
+import utility.metrics as metrics
 
-# initialize the sources --- args_config and CKG --- shared with all programs.
-args_config = parse_args()
-CKG = CKG_Data(args_config=args_config)
-
-_Ks = eval(args_config.Ks)
-_train_user_dict, _test_user_dict = CKG.train_user_dict, CKG.test_user_dict
-_n_users = CKG.n_users
-_n_test_users = len(_test_user_dict.keys())
-_item_range = CKG.item_range
+from dataloader.data_loader import build_loader
 
 def ranklist_by_heapq(user_pos_test, test_items, rating, Ks):
     item_score = {}
@@ -83,7 +73,13 @@ def test_one_user(x):
     return get_performance(user_pos_test, r, _Ks)
 
 
-def test(model, test_loader):
+def test(model, test_loader, ks, ckg):
+    global _Ks, _train_user_dict, _test_user_dict, _n_users, _n_test_users, _item_range
+    _Ks = eval(ks)
+    _train_user_dict, _test_user_dict = ckg.train_user_dict, ckg.test_user_dict
+    _n_users = ckg.n_users
+    _n_test_users = len(_test_user_dict.keys())
+    _item_range = ckg.item_range
 
     result = {'precision': np.zeros(len(_Ks)), 'recall': np.zeros(len(_Ks)), 'ndcg': np.zeros(len(_Ks)),
               'hit_ratio': np.zeros(len(_Ks))}
@@ -110,3 +106,12 @@ def test(model, test_loader):
 
     pool.close()
     return result
+
+
+if __name__ == '__main__':
+    _, test_loader = build_loader(args_config=args_config)
+
+    model = torch.load('../weights/recommender.ckpt')
+    result = test(model, test_loader)
+
+    print(result)

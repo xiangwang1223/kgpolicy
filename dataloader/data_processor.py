@@ -162,14 +162,6 @@ class CKG_Data(CF_Data, KG_Data):
         
         self.ckg_graph = self._combine_cf_kg()
 
-        if os.path.isdir("./output") == False:
-            os.mkdir("./output")
-        print("\nbegin to dump collaborative knowledge graph...")
-        dump_file = open("./output/ckg.pickle", 'wb')
-        pickle.dump(self.ckg_graph, dump_file)
-        dump_file.close()
-        print("dump collaborative knowledge graph done...")
-
     def _combine_cf_kg(self):
         kg_mat = self.kg_data
         cf_mat = self.train_data

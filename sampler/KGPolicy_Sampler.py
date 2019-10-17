@@ -27,7 +27,7 @@ class GraphConv(nn.Module):
 
         x = self.conv2(x, edge_indices)
         x = F.dropout(x)
-        # x = F.normalize(x)
+        x = F.normalize(x)
         
         return x
 
@@ -74,43 +74,16 @@ class KGPolicy(nn.Module):
 
         self.edges = self.build_edge(edge_matrix)
         
-        batch_size = users.size(0)
-        
-        final_negs = torch.tensor([], device=pos.device)
-        final_logits = torch.tensor([], device=pos.device)
-
         for _ in range(self.config.k_step):
-            good_logits = torch.zeros(batch_size, device=users.device)
-            
             """sample candidate negative items based on knowledge graph"""
-            one_hop, logits = self.kg_step(pos, users, adj_matrix, step=1)
-            good_logits += logits
-
+            one_hop, _ = self.kg_step(pos, users, adj_matrix, step=1)
             candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
-
-            """replace other entities using random negative items"""
             candidate_neg = self.filter_entity(candidate_neg)
-
-            """using discriminator to further choose qualified negative items"""
             good_neg, logits = self.dis_step(self.dis, candidate_neg, users, logits)
 
-            good_neg = self.filter_trainset(good_neg, train_set, neg)
-
-            good_logits += logits
-
             pos = good_neg
-            good_neg = good_neg.unsqueeze(dim=1)
-            good_logits = good_logits.unsqueeze(dim=1)
 
-            final_negs = torch.cat([final_negs.long(), good_neg], dim=-1)
-            final_logits = torch.cat([final_logits, good_logits], dim=-1)
-       
-        return final_negs, final_logits
-
-    def filter_trainset(self, negs, train_set, random_set):
-        in_train = torch.sum(negs.unsqueeze(1)==train_set.long(), dim=1).byte()
-        negs[in_train] = random_set[in_train]
-        return negs
+        return good_neg, logits
 
     def build_edge(self, adj_matrix):
         """build edges based on adj_matrix"""
@@ -150,7 +123,7 @@ class KGPolicy(nn.Module):
             nid = torch.argmax(logits, dim=1, keepdim=True)
         else:
             n = self.config.num_sample
-            _, indices = torch.sort(logits, descending=True)
+            _, indices = torch.sort(logits)
             nid = indices[:,:n]
         row_id = torch.arange(batch_size, device=logits.device).unsqueeze(1)
 

@@ -15,14 +15,14 @@ import pickle
 from utility.parser import parse_args
 from utility.test_model import test
 from utility.helper import early_stopping, ensureDir, freeze, unfreeze
-from utility.test_model import args_config, CKG
+from utility.parser import parse_args
 
-from dataloader.data_processor import CKG_Data
 from dataloader.data_loader import build_loader
+from dataloader.data_processor import CKG_Data
 
 from recommender.MF import MF
-from recommender.KGAT import KGAT
 from sampler.KGPolicy_Sampler import KGPolicy
+
 
 def train_one_epoch(recommender, sampler, 
                     train_loader, 
@@ -55,14 +55,12 @@ def train_one_epoch(recommender, sampler,
         train_set = train_data[users]
 
         selected_neg_items, _ = sampler(batch_data, adj_matrix, edge_matrix, train_set)
+        
+        train_set = train_data[users]
+        in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
+        selected_neg_items[in_train] = neg[in_train]
 
-        """Train recommender with sampled negative items"""
-        if config.recommender == "KGAT":
-            loss_batch, base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items, edge_matrix)
-        elif config.recommender == "MF":
-            loss_batch, base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items)
-        else:
-            raise Exception('Model has not been implemented')
+        loss_batch, base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items)
 
         loss_batch.backward()
         recommender_optim.step()
@@ -91,6 +89,18 @@ def train_one_epoch(recommender, sampler,
     
     return loss, base_loss, reg_loss, avg_reward
 
+
+def save_model(file_name, model, config):
+    if not os.path.isdir(config.out_dir):
+        os.mkdir(config.out_dir)
+    
+    model_file = Path(config.out_dir + file_name)
+    model_file.touch(exist_ok=True)
+
+    print("Saving model...")
+    torch.save(model.state_dict(), model_file)
+
+
 def build_sampler_graph(n_nodes, edge_threshold, graph):
     adj_matrix = torch.zeros(n_nodes, edge_threshold*2)
     edge_matrix = torch.zeros(n_nodes, edge_threshold)
@@ -116,33 +126,25 @@ def build_sampler_graph(n_nodes, edge_threshold, graph):
 
     return adj_matrix, edge_matrix
 
-def train(train_loader, test_loader, data_config, args_config):
-    """build training set"""
-    train_mat = deepcopy(CKG.train_user_dict)
 
+def build_train_data(train_mat):
     num_user = max(train_mat.keys()) + 1
     num_true = max([len(i) for i in train_mat.values()])
 
     train_data = torch.zeros(num_user, num_true)
 
-    """get padded tensor for training data"""
-    for i in train_mat:
+    for i in train_mat.keys():
         true_list = train_mat[i]
         true_list += [-1] * (num_true - len(true_list))
-        true_list = torch.tensor(true_list, dtype=torch.long)
-        train_data[i] = true_list
+        train_data[i] = torch.tensor(true_list, dtype=torch.long)
 
-    """preprocessing ckg graph"""
-    params = {}
+    return train_data
 
-    ckg_file = "./output/ckg.pickle"
-    graph = pickle.load(open(ckg_file, 'rb'))
 
-    params["n_users"] = CKG.n_users
-    params["n_relations"] = CKG.n_relations
-    n_nodes = CKG.entity_range[1] + 1
-    params["n_nodes"] = n_nodes
-    params["item_range"] = CKG.item_range
+def train(train_loader, test_loader, graph, data_config, args_config):
+    """build padded training set"""
+    train_mat = graph.train_user_dict
+    train_data = build_train_data(train_mat)
 
     if args_config.pretrain_r:
         print("\nLoad model from {}".format(args_config.data_path + args_config.model_path))
@@ -150,29 +152,20 @@ def train(train_loader, test_loader, data_config, args_config):
         all_embed = torch.cat((paras["user_para"], paras["item_para"]))
         data_config["all_embed"] = all_embed
     
-    data_config['n_nodes'] = n_nodes
-
-    """Build Sampler and Recommender"""
-    if args_config.recommender == "MF":
-        recommender = MF(data_config=data_config, args_config=args_config)
-    elif args_config.recommender == "KGAT":
-        recommender = KGAT(data_config=data_config, args_config=args_config)
-    
-    sampler = KGPolicy(recommender, params, args_config)
+    recommender = MF(data_config=data_config, args_config=args_config)
+    sampler = KGPolicy(recommender, data_config, args_config)
 
     if torch.cuda.is_available():
         train_data = train_data.long().cuda()
-
         sampler = sampler.cuda()
-        print('\nSet sampler as: {}'.format(str(sampler)))
         recommender = recommender.cuda()
-        print('Set recommender as: {}'.format(str(recommender)))
 
-    """Build Optimizer"""
+        print('\nSet sampler as: {}'.format(str(sampler)))
+        print('Set recommender as: {}\n'.format(str(recommender)))
+
     recommender_optimer = torch.optim.Adam(recommender.parameters(), lr=args_config.rlr)
     sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.slr)
 
-    """Initialize Best Hit Rate"""
     loss_loger, pre_loger, rec_loger, ndcg_loger, hit_loger = [], [], [], [], []
     stopping_step = 0
     should_stop = False
@@ -181,9 +174,9 @@ def train(train_loader, test_loader, data_config, args_config):
     avg_reward = 0
 
     for epoch in range(args_config.epoch):
-        """build adjacency matrix"""
         if epoch % args_config.adj_epoch == 0:
-           adj_matrix, edge_matrix = build_sampler_graph(n_nodes, args_config.edge_threshold, graph)
+            """sample adjacency matrix"""
+            adj_matrix, edge_matrix = build_sampler_graph(data_config['n_nodes'], args_config.edge_threshold, graph.ckg_graph)
         
         cur_epoch = epoch + 1
         t1 = time()
@@ -198,10 +191,9 @@ def train(train_loader, test_loader, data_config, args_config):
 
         """Test"""
         if cur_epoch % args_config.show_step == 0:
-            save_model('recommender.ckpt', recommender, args_config)
             with torch.no_grad():
                 t2 = time()
-                ret = test(recommender, test_loader)
+                ret = test(recommender, test_loader, args_config.Ks, graph)
 
             t3 = time()
             loss_loger.append(loss)
@@ -223,8 +215,6 @@ def train(train_loader, test_loader, data_config, args_config):
                                                                         stopping_step, expected_order='acc',
                                                                         flag_step=args_config.flag_step)
 
-            # *********************************************************
-            # early stopping when cur_best_pre_0 is decreasing for ten successive steps.
             if should_stop == True:
                 break
 
@@ -243,32 +233,33 @@ def train(train_loader, test_loader, data_config, args_config):
                   '\t'.join(['%.5f' % r for r in ndcgs[idx]]))
     print(final_perf)
 
-def save_model(file_name, model, config):
-    if not os.path.isdir(config.out_dir):
-        os.mkdir(config.out_dir)
-    
-    model_file = Path(config.out_dir + file_name)
-    model_file.touch(exist_ok=True)
-
-    print("Saving model...")
-    torch.save(model.state_dict(), model_file)
-
 
 if __name__ == '__main__':
-    # fix the random seed.
+    """fix the random seed"""
     seed = 2020
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-
-    # set the gpu id.
+   
+    """initialize args and dataset"""
+    args_config = parse_args()
+    CKG = CKG_Data(args_config)
+    
+    """set the gpu id"""
     if torch.cuda.is_available():
         torch.cuda.set_device(args_config.gpu_id)
+    
+    data_config = {'n_users': CKG.n_users,
+                   'n_items': CKG.n_items,
+                   'n_relations': CKG.n_relations + 2, 
+                   'n_entities': CKG.n_entities,
+                   'n_nodes': CKG.entity_range[1] + 1,
+                   'item_range': CKG.item_range}
 
-    # initialize the data config.
-    data_config = {'n_users': CKG.n_users,'n_items': CKG.n_items,
-                   'n_relations': CKG.n_relations + 2, 'n_entities': CKG.n_entities, }
-
-    train_loader, test_loader = build_loader(args_config=args_config)
-    train(train_loader=train_loader, test_loader=test_loader,
-          data_config=data_config, args_config=args_config)
+    train_loader, test_loader = build_loader(args_config=args_config, graph=CKG)
+    
+    train(train_loader=train_loader, 
+          test_loader=test_loader,
+          graph=CKG,
+          data_config=data_config, 
+          args_config=args_config)
