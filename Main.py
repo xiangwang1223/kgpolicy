@@ -30,8 +30,7 @@ def train_one_epoch(recommender, sampler,
                     adj_matrix, edge_matrix, 
                     train_data, 
                     cur_epoch, 
-                    avg_reward, 
-                    config):
+                    avg_reward):
 
     loss, base_loss, reg_loss = 0, 0, 0
     epoch_reward = 0
@@ -186,8 +185,7 @@ def train(train_loader, test_loader, graph, data_config, args_config):
                                                                 adj_matrix, edge_matrix, 
                                                                 train_data, 
                                                                 cur_epoch, 
-                                                                avg_reward, 
-                                                                args_config)
+                                                                avg_reward)
 
         """Test"""
         if cur_epoch % args_config.show_step == 0:
@@ -215,7 +213,7 @@ def train(train_loader, test_loader, graph, data_config, args_config):
                                                                         stopping_step, expected_order='acc',
                                                                         flag_step=args_config.flag_step)
 
-            if should_stop == True:
+            if should_stop:
                 break
 
     recs = np.array(rec_loger)
@@ -243,7 +241,7 @@ if __name__ == '__main__':
    
     """initialize args and dataset"""
     args_config = parse_args()
-    CKG = CKG_Data(args_config)
+    CKG = CKGData(args_config)
     
     """set the gpu id"""
     if torch.cuda.is_available():

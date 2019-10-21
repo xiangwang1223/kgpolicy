@@ -5,9 +5,9 @@ import heapq
 import multiprocessing
 import numpy as np
 
+from dataloader.data_loader import build_loader
 import utility.metrics as metrics
 
-from dataloader.data_loader import build_loader
 
 def ranklist_by_heapq(user_pos_test, test_items, rating, Ks):
     item_score = {}
@@ -25,6 +25,7 @@ def ranklist_by_heapq(user_pos_test, test_items, rating, Ks):
             r.append(0)
     return r
 
+
 def ranklist_by_sorted(user_pos_test, test_items, rating, Ks):
     item_score = {}
     for i in test_items:
@@ -41,6 +42,7 @@ def ranklist_by_sorted(user_pos_test, test_items, rating, Ks):
             r.append(0)
     return r
 
+
 def get_performance(user_pos_test, r, Ks):
     precision, recall, ndcg, hit_ratio = [], [], [], []
 
@@ -52,6 +54,7 @@ def get_performance(user_pos_test, r, Ks):
 
     return {'recall': np.array(recall), 'precision': np.array(precision),
             'ndcg': np.array(ndcg), 'hit_ratio': np.array(hit_ratio)}
+
 
 def test_one_user(x):
     # user u's ratings for user u
@@ -106,12 +109,3 @@ def test(model, test_loader, ks, ckg):
 
     pool.close()
     return result
-
-
-if __name__ == '__main__':
-    _, test_loader = build_loader(args_config=args_config)
-
-    model = torch.load('../weights/recommender.ckpt')
-    result = test(model, test_loader)
-
-    print(result)

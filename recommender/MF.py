@@ -58,7 +58,8 @@ class MF(nn.Module):
 
         return reward
 
-    def _l2_loss(self, t):
+    @staticmethod
+    def _l2_loss(t):
         return torch.sum(t ** 2) / 2
 
     def inference(self, users):

@@ -2,6 +2,7 @@
 import numpy as np
 from sklearn.metrics import roc_auc_score, log_loss, mean_squared_error
 
+
 def recall(rank, ground_truth, N):
     return len(set(rank[:N]) & set(ground_truth)) / float(len(set(ground_truth)))
 
@@ -84,11 +85,13 @@ def hit_at_k(r, k):
     else:
         return 0.
 
+
 def F1(pre, rec):
     if pre + rec > 0:
         return (2.0 * pre * rec) / (pre + rec)
     else:
         return 0.
+
 
 def auc(ground_truth, prediction):
     try:
@@ -96,6 +99,7 @@ def auc(ground_truth, prediction):
     except Exception:
         res = 0.
     return res
+
 
 def logloss(ground_truth, prediction):
     # preds = [max(min(p, 1. - 10e-12), 10e-12) for p in prediction]

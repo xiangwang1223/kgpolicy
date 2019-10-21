@@ -1,5 +1,6 @@
 import argparse
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run KGPolicy2.")
     # ------------------------- experimental settings specific for data set --------------------------------------------
@@ -16,13 +17,13 @@ def parse_args():
     parser.add_argument('--k_neg', type=int, default=1,
                         help='number of negative items in list')
 
-    # ------------------------- experimental settings specific for recommender --------------------------------------------
+    # ------------------------- experimental settings specific for recommender -----------------------------------------
     parser.add_argument('--slr', type=float, default=0.0001,
                         help='Learning rate for sampler.')
     parser.add_argument('--rlr', type=float, default=0.0001,
                         help='Learning rate recommender.')
 
-    # ------------------------- experimental settings specific for sampler --------------------------------------------
+    # ------------------------- experimental settings specific for sampler ---------------------------------------------
     parser.add_argument('--edge_threshold', type=int, default=8,
                         help='edge threshold to filter knowledge graph')
     parser.add_argument('--num_sample', type=int, default=4,

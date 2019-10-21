@@ -7,7 +7,8 @@ from tqdm import tqdm
 from utility.helper import ensureDir
 from time import time
 
-class CF_Data(object):
+
+class CFData(object):
     def __init__(self, args_config):
         self.args_config = args_config
 
@@ -25,7 +26,8 @@ class CF_Data(object):
         self._statistic_interactions()
 
     # reading train & test interaction data.
-    def _generate_interactions(self, file_name):
+    @staticmethod
+    def _generate_interactions(file_name):
         inter_mat = list()
 
         lines = open(file_name, 'r').readlines()
@@ -82,7 +84,8 @@ class CF_Data(object):
         print('-        n_items: %d' % self.n_items)
         print('-'*50)
 
-class KG_Data(object):
+
+class KGData(object):
     def __init__(self, args_config, entity_start_id=0, relation_start_id=0):
         self.args_config = args_config
         self.entity_start_id = entity_start_id
@@ -154,7 +157,8 @@ class KG_Data(object):
         print('-   n_kg_triples: %d' % (self.n_kg_triples))
         print('-'*50)
 
-class CKG_Data(CF_Data, KG_Data):
+
+class CKGData(CF_Data, KG_Data):
     def __init__(self, args_config):
         CF_Data.__init__(self, args_config=args_config)
         KG_Data.__init__(self, args_config=args_config, entity_start_id=self.n_users, relation_start_id=2)
@@ -179,5 +183,5 @@ class CKG_Data(CF_Data, KG_Data):
 
         print('\nBegin to load knowledge graph triples ...')
         for h_id, r_id, t_id in tqdm(kg_mat, ascii=True):
-            ckg_graph.add_edges_from([(h_id, t_id)], r_id=(r_id))
+            ckg_graph.add_edges_from([(h_id, t_id)], r_id=r_id)
         return ckg_graph

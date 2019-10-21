@@ -9,26 +9,32 @@ def txt2list(file_src):
     lines = orig_file.readlines()
     return lines
 
-def ensureDir(dir_path):
+
+def ensure_dir(dir_path):
     d = os.path.dirname(dir_path)
     if not os.path.exists(d):
         os.makedirs(d)
 
+
 def uni2str(unicode_str):
     return str(unicode_str.encode('ascii', 'ignore')).replace('\n', '').strip()
 
-def hasNumbers(inputString):
-    return bool(re.search(r'\d', inputString))
 
-def delMultiChar(inputString, chars):
+def has_numbers(input_string):
+    return bool(re.search(r'\d', input_string))
+
+
+def del_multichar(input_string, chars):
     for ch in chars:
-        inputString = inputString.replace(ch, '')
-    return inputString
+        input_string = input_string.replace(ch, '')
+    return input_string
+
 
 def merge_two_dicts(x, y):
     z = x.copy()   # start with x's keys and values
     z.update(y)    # modifies z with y's keys and values & returns None
     return z
+
 
 def early_stopping(log_value, best_value, stopping_step, expected_order='acc', flag_step=100):
     # early stopping strategy:
@@ -47,10 +53,12 @@ def early_stopping(log_value, best_value, stopping_step, expected_order='acc', f
         should_stop = False
     return best_value, stopping_step, should_stop
 
+
 def freeze(model):
     for param in model.parameters():
         param.requires_grad = False
     return model
+
 
 def unfreeze(model):
     for param in model.parameters():

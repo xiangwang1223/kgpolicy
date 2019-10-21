@@ -7,7 +7,7 @@ import scipy.sparse as sp
 from time import time
 
 
-class Train_Generator(Dataset):
+class TrainGenerator(Dataset):
     def __init__(self, args_config, graph):
         self.args_config = args_config
         self.graph = graph
@@ -40,12 +40,6 @@ class Train_Generator(Dataset):
         neg_i_id = self.get_random_neg(pos_items, [])
         out_dict['neg_i_id'] = neg_i_id
 
-        neg_i_ids = []
-        for i in range(self.args_config.k_neg):
-            neg_i_id = self.get_random_neg(pos_items, neg_i_ids)
-            neg_i_ids.append(neg_i_id)
-        out_dict["neg_i_ids"] = torch.tensor(neg_i_ids)
-
         return out_dict
 
     def get_random_neg(self, pos_items, selected_items):
@@ -56,14 +50,8 @@ class Train_Generator(Dataset):
                 break
         return neg_i_id
 
-    def _generate_sp_mask(self, uid):
-        mask_adj = self.sp_adj.tolil()[uid]
-        mask_adj = mask_adj.tocoo()
-        rows = mask_adj.row
-        cols = mask_adj.col
-        return (rows, cols)
 
-class Test_Generator(Dataset):
+class TestGenerator(Dataset):
     def __init__(self, args_config, graph):
         self.args_config = args_config
         self.users_to_test = list(graph.test_user_dict.keys())

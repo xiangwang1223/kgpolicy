@@ -33,13 +33,6 @@ class AdvNet(nn.Module):
         all_embed = nn.Parameter(torch.FloatTensor(self.n_users + self.n_items, self.emb_size))
         nn.init.xavier_normal_(all_embed)
 
-        # user_embed = nn.Parameter(torch.FloatTensor(self.n_users, self.emb_size))
-        # item_embed = nn.Parameter(torch.FloatTensor(self.n_items, self.emb_size))
-        # nn.init.xavier_normal_(user_embed)
-        # nn.init.xavier_normal_(item_embed)
-        #
-        # all_weight['all_embed'] = nn.Parameter(torch.cat((user_embed, item_embed), 0))
-
         return all_embed
 
     def forward(self, data_batch):
