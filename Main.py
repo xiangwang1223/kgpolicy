@@ -14,11 +14,11 @@ import pickle
 
 from utility.parser import parse_args
 from utility.test_model import test
-from utility.helper import early_stopping, ensureDir, freeze, unfreeze
+from utility.helper import early_stopping
 from utility.parser import parse_args
 
 from dataloader.data_loader import build_loader
-from dataloader.data_processor import CKG_Data
+from dataloader.data_processor import CKGData
 
 from recommender.MF import MF
 from sampler.KGPolicy_Sampler import KGPolicy
@@ -38,7 +38,7 @@ def train_one_epoch(recommender, sampler,
     """Train one epoch"""
     tbar = tqdm(train_loader, ascii=True)
     num_batch = len(train_loader)
-    for i, batch_data in enumerate(tbar):
+    for batch_data in tbar:
         
         tbar.set_description('Epoch {}'.format(cur_epoch))
 
@@ -51,22 +51,22 @@ def train_one_epoch(recommender, sampler,
         users = batch_data["u_id"]
         neg = batch_data["neg_i_id"]
         pos = batch_data["pos_i_id"]
-        train_set = train_data[users]
 
-        selected_neg_items, _ = sampler(batch_data, adj_matrix, edge_matrix, train_set)
+        selected_neg_items, _ = sampler(batch_data, adj_matrix, edge_matrix)
         
         train_set = train_data[users]
-        in_train = torch.sum(selected_neg_items.unsqueeze(1)==train_set.long(), dim=1).byte()
+        in_train = torch.sum(selected_neg_items.unsqueeze(1) == train_set.long(), dim=1).byte()
         selected_neg_items[in_train] = neg[in_train]
 
-        loss_batch, base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items)
+        base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items)
+        loss_batch = base_loss_batch + reg_loss_batch
 
         loss_batch.backward()
         recommender_optim.step()
 
         """Train sampler network"""
         sampler_optim.zero_grad()
-        selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix, edge_matrix, train_set)
+        selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix, edge_matrix)
         
         with torch.no_grad():
             reward_batch = recommender.get_reward(users, pos, selected_neg_items)
@@ -84,7 +84,9 @@ def train_one_epoch(recommender, sampler,
         reg_loss += reg_loss_batch
     
     avg_reward = epoch_reward / num_batch
-    print("Epoch {0:4d}: \n Training loss: [{1:4f} = {2:4f} + {3:4f}]\n Reward: {4:4f}".format(cur_epoch, loss, base_loss, reg_loss, avg_reward))
+    print(' Epoch {0:4d}: \
+            \n  Training loss: [{1:4f} = {2:4f} + {3:4f}] \
+            \n         Reward: {4:4f}'.format(cur_epoch, loss, base_loss, reg_loss, avg_reward))
     
     return loss, base_loss, reg_loss, avg_reward
 
@@ -166,20 +168,17 @@ def train(train_loader, test_loader, graph, data_config, args_config):
     sampler_optimer = torch.optim.Adam(sampler.parameters(), lr=args_config.slr)
 
     loss_loger, pre_loger, rec_loger, ndcg_loger, hit_loger = [], [], [], [], []
-    stopping_step = 0
-    should_stop = False
-    cur_best_pre_0 = 0.
+    stopping_step, cur_best_pre_0, avg_reward = 0, 0., 0
     t0 = time()
-    avg_reward = 0
 
     for epoch in range(args_config.epoch):
         if epoch % args_config.adj_epoch == 0:
             """sample adjacency matrix"""
-            adj_matrix, edge_matrix = build_sampler_graph(data_config['n_nodes'], args_config.edge_threshold, graph.ckg_graph)
+            adj_matrix, edge_matrix = build_sampler_graph(data_config['n_nodes'],
+                                                          args_config.edge_threshold, graph.ckg_graph)
         
         cur_epoch = epoch + 1
-        t1 = time()
-        loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler, 
+        loss, base_loss, reg_loss, avg_reward = train_one_epoch(recommender, sampler,
                                                                 train_loader, 
                                                                 recommender_optimer, sampler_optimer, 
                                                                 adj_matrix, edge_matrix, 
@@ -200,13 +199,20 @@ def train(train_loader, test_loader, graph, data_config, args_config):
             ndcg_loger.append(ret['ndcg'])
             hit_loger.append(ret['hit_ratio'])
 
-            perf_str = 'Evaluate[%.1fs]: \n    recall=[%.5f, %.5f, %.5f, %.5f, %.5f], ' \
-                       '\n precision=[%.5f, %.5f, %.5f, %.5f, %.5f], \n       hit=[%.5f, %.5f, %.5f, %.5f, %.5f], \n      ndcg=[%.5f, %.5f, %.5f, %.5f, %.5f] \n' % \
+            perf_str = 'Evaluate[%.1fs]: \
+                        \n      recall=[%.5f, %.5f, %.5f, %.5f, %.5f], \
+                        \n   precision=[%.5f, %.5f, %.5f, %.5f, %.5f], \
+                        \n         hit=[%.5f, %.5f, %.5f, %.5f, %.5f], \
+                        \n        ndcg=[%.5f, %.5f, %.5f, %.5f, %.5f] ' % \
                        (t3 - t2,
-                        ret['recall'][0], ret['recall'][1], ret['recall'][2], ret['recall'][3], ret['recall'][4],
-                        ret['precision'][0], ret['precision'][1], ret['precision'][2], ret['precision'][3], ret['precision'][4],
-                        ret['hit_ratio'][0],ret['hit_ratio'][1], ret['hit_ratio'][2], ret['hit_ratio'][3], ret['hit_ratio'][4],
-                        ret['ndcg'][0], ret['ndcg'][1], ret['ndcg'][2], ret['ndcg'][3], ret['ndcg'][4])
+                        ret['recall'][0], ret['recall'][1],
+                        ret['recall'][2], ret['recall'][3], ret['recall'][4],
+                        ret['precision'][0], ret['precision'][1],
+                        ret['precision'][2], ret['precision'][3], ret['precision'][4],
+                        ret['hit_ratio'][0], ret['hit_ratio'][1],
+                        ret['hit_ratio'][2], ret['hit_ratio'][3], ret['hit_ratio'][4],
+                        ret['ndcg'][0], ret['ndcg'][1],
+                        ret['ndcg'][2], ret['ndcg'][3], ret['ndcg'][4])
             print(perf_str)
 
             cur_best_pre_0, stopping_step, should_stop = early_stopping(ret['recall'][0], cur_best_pre_0,
@@ -254,7 +260,9 @@ if __name__ == '__main__':
                    'n_nodes': CKG.entity_range[1] + 1,
                    'item_range': CKG.item_range}
 
-    train_loader, test_loader = build_loader(args_config=args_config, graph=CKG)
+    print('\ncopying CKG graph for data_loader.. it might take a few minutes')
+    graph = deepcopy(CKG)
+    train_loader, test_loader = build_loader(args_config=args_config, graph=graph)
     
     train(train_loader=train_loader, 
           test_loader=test_loader,

@@ -7,6 +7,7 @@ import networkx as nx
 
 from tqdm import tqdm
 
+
 class GraphConv(nn.Module):
     """
     Graph Convolutional Network
@@ -20,7 +21,7 @@ class GraphConv(nn.Module):
         self.conv1 = geometric.nn.SAGEConv(in_channel[0], out_channel[0])
         self.conv2 = geometric.nn.SAGEConv(in_channel[1], out_channel[1])
 
-    def forward(self, x, edge_indices, r_index):
+    def forward(self, x, edge_indices):
         x = self.conv1(x, edge_indices)
         x = F.leaky_relu(x)
         x = F.dropout(x)
@@ -35,7 +36,7 @@ class GraphConv(nn.Module):
 class KGPolicy(nn.Module):
     """
     Dynamical negative item sampler based on Knowledge graph
-    Input: user, postive item
+    Input: user, postive item, knowledge graph embedding
     Ouput: qualified negative item
     """
     def __init__(self, dis, params, config):
@@ -46,7 +47,6 @@ class KGPolicy(nn.Module):
 
         in_channel = eval(config.in_channel)
         out_channel = eval(config.out_channel)
-        config.num_relations = params["n_relations"]
         self.gcn = GraphConv(in_channel, out_channel, config)
 
         self.n_entities = params["n_nodes"]
@@ -65,20 +65,25 @@ class KGPolicy(nn.Module):
 
         if self.config.freeze_s:
             entity_embedding.requires_grad = False
+
         return entity_embedding
 
-    def forward(self, data_batch, adj_matrix, edge_matrix, train_set):
+    def forward(self, data_batch, adj_matrix, edge_matrix):
         users = data_batch["u_id"]
         pos = data_batch["pos_i_id"]
-        neg = data_batch["neg_i_id"]
 
         self.edges = self.build_edge(edge_matrix)
-        
-        for _ in range(self.config.k_step):
+
+        # neg_list = torch.tensor([], device=adj_matrix.device)
+        # prob_list = torch.tensor([], device=adj_matrix.device)
+
+        k = self.config.k_step
+        assert k > 1
+        for _ in range(k - 1):
             """sample candidate negative items based on knowledge graph"""
             one_hop, _ = self.kg_step(pos, users, adj_matrix, step=1)
             candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
-            candidate_neg = self.filter_entity(candidate_neg)
+            candidate_neg = self.filter_entity(candidate_neg, self.item_range)
             good_neg, logits = self.dis_step(self.dis, candidate_neg, users, logits)
 
             pos = good_neg
@@ -101,7 +106,7 @@ class KGPolicy(nn.Module):
         edges = self.edges
 
         """knowledge graph embedding using gcn"""
-        gcn_embedding = self.gcn(x, edges.t().contiguous(), edges.t().contiguous().long())
+        gcn_embedding = self.gcn(x, edges.t().contiguous())
 
         """use knowledge embedding to decide candidate negative items"""
         u_e = gcn_embedding[user]
@@ -124,7 +129,7 @@ class KGPolicy(nn.Module):
         else:
             n = self.config.num_sample
             _, indices = torch.sort(logits)
-            nid = indices[:,:n]
+            nid = indices[:, :n]
         row_id = torch.arange(batch_size, device=logits.device).unsqueeze(1)
 
         candidate_neg = one_hop[row_id, nid].squeeze()
@@ -132,7 +137,8 @@ class KGPolicy(nn.Module):
 
         return candidate_neg, candidate_logits
 
-    def dis_step(self, dis, negs, users, logits):
+    @staticmethod
+    def dis_step(dis, negs, users, logits):
         with torch.no_grad():
             ranking = dis.rank(users, negs)
 
@@ -148,14 +154,10 @@ class KGPolicy(nn.Module):
 
         return good_neg, goog_logits
 
-    def filter_entity(self, neg):
-        random_neg = torch.randint(int(self.item_range[0]), int(self.item_range[1] + 1), neg.size(), device=neg.device)
-        neg[neg > self.item_range[1]] = random_neg[neg > self.item_range[1]]
-        neg[neg < self.item_range[0]] = random_neg[neg < self.item_range[0]]
+    @staticmethod
+    def filter_entity(neg, item_range):
+        random_neg = torch.randint(int(item_range[0]), int(item_range[1] + 1), neg.size(), device=neg.device)
+        neg[neg > item_range[1]] = random_neg[neg > item_range[1]]
+        neg[neg < item_range[0]] = random_neg[neg < item_range[0]]
 
         return neg
-
-
-
-
-        

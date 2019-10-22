@@ -29,26 +29,24 @@ class MF(nn.Module):
 
     def forward(self, user, pos_item, neg_item):
 
-        u_e = self.all_embed[user].unsqueeze(dim=1)
-        pos_e = self.all_embed[pos_item].unsqueeze(dim=1)
+        u_e = self.all_embed[user]
+        pos_e = self.all_embed[pos_item]
         neg_e = self.all_embed[neg_item]
 
         reg_loss = self._l2_loss(u_e) + self._l2_loss(pos_e) + self._l2_loss(neg_e)
         reg_loss = self.regs * reg_loss
 
-        pos_scores = torch.sum(u_e * pos_e, dim=-1)
-        neg_scores = torch.sum(u_e * neg_e, dim=-1)
+        pos_scores = torch.sum(u_e * pos_e, dim=1)
+        neg_scores = torch.sum(u_e * neg_e, dim=1)
 
         bpr_loss = torch.log(torch.sigmoid(pos_scores - neg_scores))
         bpr_loss = -torch.mean(bpr_loss)
 
-        loss = bpr_loss + reg_loss
-
-        return loss, bpr_loss, reg_loss
+        return bpr_loss, reg_loss
 
     def get_reward(self, user, pos_item, neg_item):
-        u_e = self.all_embed[user].unsqueeze(dim=1)
-        pos_e = self.all_embed[pos_item].unsqueeze(dim=1)
+        u_e = self.all_embed[user]
+        pos_e = self.all_embed[pos_item]
         neg_e = self.all_embed[neg_item]
 
         neg_scores = torch.sum(u_e * neg_e, dim=-1)

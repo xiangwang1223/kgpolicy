@@ -4,7 +4,7 @@ import networkx as nx
 import pickle
 import os
 from tqdm import tqdm
-from utility.helper import ensureDir
+from utility.helper import ensure_dir
 from time import time
 
 
@@ -22,7 +22,7 @@ class CFData(object):
 
         self.train_user_dict, self.test_user_dict = self._generate_user_dict()
 
-        self.exist_users = self.train_user_dict.keys()
+        self.exist_users = list(self.train_user_dict.keys())
         self._statistic_interactions()
 
     # reading train & test interaction data.
@@ -154,14 +154,14 @@ class KGData(object):
         print('- relation_range: (%d, %d)' % (self.relation_range[0], self.relation_range[1]))
         print('-     n_entities: %d' % self.n_entities)
         print('-    n_relations: %d' % self.n_relations)
-        print('-   n_kg_triples: %d' % (self.n_kg_triples))
+        print('-   n_kg_triples: %d' % self.n_kg_triples)
         print('-'*50)
 
 
-class CKGData(CF_Data, KG_Data):
+class CKGData(CFData, KGData):
     def __init__(self, args_config):
-        CF_Data.__init__(self, args_config=args_config)
-        KG_Data.__init__(self, args_config=args_config, entity_start_id=self.n_users, relation_start_id=2)
+        CFData.__init__(self, args_config=args_config)
+        KGData.__init__(self, args_config=args_config, entity_start_id=self.n_users, relation_start_id=2)
         self.args_config = args_config
         
         self.ckg_graph = self._combine_cf_kg()
