@@ -74,21 +74,27 @@ class KGPolicy(nn.Module):
 
         self.edges = self.build_edge(edge_matrix)
 
-        # neg_list = torch.tensor([], device=adj_matrix.device)
-        # prob_list = torch.tensor([], device=adj_matrix.device)
+        neg_list = torch.tensor([], dtype=torch.long, device=adj_matrix.device)
+        prob_list = torch.tensor([], device=adj_matrix.device)
 
         k = self.config.k_step
-        assert k > 1
-        for _ in range(k - 1):
+        assert k > 0
+
+        for _ in range(k):
             """sample candidate negative items based on knowledge graph"""
-            one_hop, _ = self.kg_step(pos, users, adj_matrix, step=1)
-            candidate_neg, logits = self.kg_step(one_hop, users, adj_matrix, step=2)
+            one_hop, one_hop_logits = self.kg_step(pos, users, adj_matrix, step=1)
+
+            candidate_neg, two_hop_logits = self.kg_step(one_hop, users, adj_matrix, step=2)
             candidate_neg = self.filter_entity(candidate_neg, self.item_range)
-            good_neg, logits = self.dis_step(self.dis, candidate_neg, users, logits)
+            good_neg, good_logits = self.dis_step(self.dis, candidate_neg, users, two_hop_logits)
+            good_logits = good_logits + one_hop_logits
+
+            neg_list = torch.cat([neg_list, good_neg.unsqueeze(0)])
+            prob_list = torch.cat([prob_list, good_logits.unsqueeze(0)])
 
             pos = good_neg
 
-        return good_neg, logits
+        return neg_list, prob_list
 
     def build_edge(self, adj_matrix):
         """build edges based on adj_matrix"""

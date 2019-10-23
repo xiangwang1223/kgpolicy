@@ -46,7 +46,7 @@ def parse_args():
                         help='number of threads.')
     parser.add_argument('--epoch', type=int, default=400,
                         help='Number of epoch.')
-    parser.add_argument('--show_step', type=int, default=1,
+    parser.add_argument('--show_step', type=int, default=3,
                         help='test step.')
     parser.add_argument('--adj_epoch', type=int, default=1,
                         help='build adj matrix per _ epoch')
@@ -60,6 +60,8 @@ def parse_args():
                         help='output directory for model')
     parser.add_argument("--flag_step", type=int, default=32,
                         help="early stop steps")
+    parser.add_argument("--gamma", type=float, default=0.99,
+                        help="gamma for reward accumulation")
 
     # ------------------------- experimental settings specific for testing ---------------------------------------------
     parser.add_argument('--Ks', nargs='?', default='[20, 40, 60, 80, 100]',

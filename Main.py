@@ -52,8 +52,9 @@ def train_one_epoch(recommender, sampler,
         neg = batch_data["neg_i_id"]
         pos = batch_data["pos_i_id"]
 
-        selected_neg_items, _ = sampler(batch_data, adj_matrix, edge_matrix)
-        
+        selected_neg_items_list, _ = sampler(batch_data, adj_matrix, edge_matrix)
+        selected_neg_items = selected_neg_items_list[-1, :]
+
         train_set = train_data[users]
         in_train = torch.sum(selected_neg_items.unsqueeze(1) == train_set.long(), dim=1).byte()
         selected_neg_items[in_train] = neg[in_train]
@@ -66,15 +67,26 @@ def train_one_epoch(recommender, sampler,
 
         """Train sampler network"""
         sampler_optim.zero_grad()
-        selected_neg_items, selected_neg_prob = sampler(batch_data, adj_matrix, edge_matrix)
+        selected_neg_items_list, selected_neg_prob_list = sampler(batch_data, adj_matrix, edge_matrix)
         
         with torch.no_grad():
-            reward_batch = recommender.get_reward(users, pos, selected_neg_items)
+            reward_batch = recommender.get_reward(users, pos, selected_neg_items_list)
 
         epoch_reward += torch.sum(reward_batch)
         reward_batch -= avg_reward
 
-        reinforce_loss = torch.sum(reward_batch * selected_neg_prob)
+        batch_size = reward_batch.size(1)
+        n = reward_batch.size(0) - 1
+        R = torch.zeros(batch_size, device=reward_batch.device)
+        reward = torch.zeros(reward_batch.size(), device=reward_batch.device)
+
+        gamma = args_config.gamma
+
+        for i, r in enumerate(reward_batch.flip(0)):
+            R = r + gamma * R
+            reward[n - i] = R
+
+        reinforce_loss = -1 * torch.sum(reward_batch * selected_neg_prob_list)
         reinforce_loss.backward()
         sampler_optim.step()
     
