@@ -86,7 +86,7 @@ class KGPolicy(nn.Module):
 
             candidate_neg, two_hop_logits = self.kg_step(one_hop, users, adj_matrix, step=2)
             candidate_neg = self.filter_entity(candidate_neg, self.item_range)
-            good_neg, good_logits = self.dis_step(self.dis, candidate_neg, users, two_hop_logits)
+            good_neg, good_logits = self.prune_step(self.dis, candidate_neg, users, two_hop_logits)
             good_logits = good_logits + one_hop_logits
 
             neg_list = torch.cat([neg_list, good_neg.unsqueeze(0)])
@@ -123,7 +123,7 @@ class KGPolicy(nn.Module):
         one_hop = adj_matrix[pos]
         i_e = gcn_embedding[one_hop]
 
-        p_entity = pos_e * i_e 
+        p_entity = F.leaky_relu(pos_e * i_e) 
         p = torch.matmul(p_entity, u_e)
         p = p.squeeze()
         logits = F.softmax(p, dim=1) 
@@ -134,7 +134,7 @@ class KGPolicy(nn.Module):
             nid = torch.argmax(logits, dim=1, keepdim=True)
         else:
             n = self.config.num_sample
-            _, indices = torch.sort(logits)
+            _, indices = torch.sort(logits, descending=True)
             nid = indices[:, :n]
         row_id = torch.arange(batch_size, device=logits.device).unsqueeze(1)
 
@@ -144,11 +144,11 @@ class KGPolicy(nn.Module):
         return candidate_neg, candidate_logits
 
     @staticmethod
-    def dis_step(dis, negs, users, logits):
+    def prune_step(dis, negs, users, logits):
         with torch.no_grad():
             ranking = dis.rank(users, negs)
 
-        """get most qualified negative item based on discriminator"""
+        """get most qualified negative item based on user-neg similarity"""
         indices = torch.argmax(ranking, dim=1)
 
         batch_size = negs.size(0)
