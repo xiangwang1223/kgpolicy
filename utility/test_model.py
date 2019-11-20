@@ -1,111 +1,80 @@
 import torch
 
-from tqdm import tqdm
-import heapq
-import multiprocessing
 import numpy as np
+from tqdm import tqdm
 
 from dataloader.data_loader import build_loader
-import utility.metrics as metrics
 
 
-def ranklist_by_heapq(user_pos_test, test_items, rating, Ks):
-    item_score = {}
-    for i in test_items:
-        item_score[i] = rating[i - _n_users]
+def get_score(model, n_users, n_items, train_user_dict):
+    u_e, i_e = torch.split(model.all_embed, [n_users, n_items])
+    
+    score_matrix = torch.matmul(u_e, i_e.t())
+    for u, pos in train_user_dict.items():
+        score_matrix[u][pos-n_users] = -1e5
+    
+    return score_matrix
 
-    K_max = max(Ks)
-    K_max_item_score = heapq.nlargest(K_max, item_score, key=item_score.get)
+def cal_ndcg(topk, test_set, num_pos, k):
+    n = min(num_pos, k)
+    nrange = np.arange(n)+2
+    idcg = np.sum(1/np.log2(nrange))
 
-    r = []
-    for i in K_max_item_score:
-        if i in user_pos_test:
-            r.append(1)
-        else:
-            r.append(0)
-    return r
+    dcg = 0
+    for i, s in enumerate(topk):
+        if s in test_set:
+            dcg += 1/np.log2(i+2)
 
+    ndcg = dcg/idcg
 
-def ranklist_by_sorted(user_pos_test, test_items, rating, Ks):
-    item_score = {}
-    for i in test_items:
-        item_score[i] = rating[i - _n_users]
+    return ndcg
 
-    K_max = max(Ks)
-    K_max_item_score = heapq.nlargest(K_max, item_score, key=item_score.get)
+def test_v2(model, ks, ckg):
+    ks = eval(ks)
+    train_user_dict, test_user_dict = ckg.train_user_dict, ckg.test_user_dict
 
-    r = []
-    for i in K_max_item_score:
-        if i in user_pos_test:
-            r.append(1)
-        else:
-            r.append(0)
-    return r
+    n_users = ckg.n_users
+    n_items = ckg.n_items
+    n_test_users = len(test_user_dict)
 
+    score_matrix = get_score(model, n_users, n_items, train_user_dict)
 
-def get_performance(user_pos_test, r, Ks):
-    precision, recall, ndcg, hit_ratio = [], [], [], []
+    n_k = len(ks)
+    result = {'precision': np.zeros(n_k),
+              'recall' : np.zeros(n_k),
+              'ndcg': np.zeros(n_k),
+              'hit_ratio': np.zeros(n_k)}
+    
+    for i, k in enumerate(tqdm(ks, ascii=True, desc='Evaluate')):
+        precision, recall, ndcg, hr = 0, 0, 0, 0 
+        _, topk_index = torch.topk(score_matrix, k)
+        topk_index = topk_index.cpu().numpy() + n_users
+        
+        for test_u, gt_pos in test_user_dict.items():
+            topk = topk_index[test_u]
+            num_pos = len(gt_pos)
 
-    for K in Ks:
-        precision.append(metrics.precision_at_k(r, K))
-        recall.append(metrics.recall_at_k(r, K, len(user_pos_test)))
-        ndcg.append(metrics.ndcg_at_k(r, K))
-        hit_ratio.append(metrics.hit_at_k(r, K))
+            topk_set = set(topk)
+            test_set = set(gt_pos)
+            num_hit = len(topk_set & test_set)
 
-    return {'recall': np.array(recall), 'precision': np.array(precision),
-            'ndcg': np.array(ndcg), 'hit_ratio': np.array(hit_ratio)}
+            precision += num_hit / k
+            recall += num_hit / num_pos
+            hr += 1 if num_hit > 0 else 0
 
+            ndcg += cal_ndcg(topk, test_set, num_pos, k)
+        
+        result['precision'][i] = precision / n_test_users
+        result['recall'][i] = recall / n_test_users
+        result['ndcg'][i] = ndcg / n_test_users
+        result['hit_ratio'][i] = hr / n_test_users
 
-def test_one_user(x):
-    # user u's ratings for user u
-    rating = x[0]
-    # uid
-    u = x[1]
-
-    # user u's items in the training set
-    try:
-        training_items = _train_user_dict[u.item()]
-    except Exception:
-        training_items = []
-    # user u's items in the test set
-    user_pos_test = _test_user_dict[u.item()]
-    all_items = set(range(_item_range[0], _item_range[1] + 1))
-    test_items = list(all_items - set(training_items))
-    r = ranklist_by_heapq(user_pos_test, test_items, rating, _Ks)
-
-    return get_performance(user_pos_test, r, _Ks)
-
-
-def test(model, test_loader, ks, ckg):
-    global _Ks, _train_user_dict, _test_user_dict, _n_users, _n_test_users, _item_range
-    _Ks = eval(ks)
-    _train_user_dict, _test_user_dict = ckg.train_user_dict, ckg.test_user_dict
-    _n_users = ckg.n_users
-    _n_test_users = len(_test_user_dict.keys())
-    _item_range = ckg.item_range
-
-    result = {'precision': np.zeros(len(_Ks)), 'recall': np.zeros(len(_Ks)), 'ndcg': np.zeros(len(_Ks)),
-              'hit_ratio': np.zeros(len(_Ks))}
-
-    cores = multiprocessing.cpu_count() // 2
-    pool = multiprocessing.Pool(cores)
-
-    for _, batch_data in enumerate(tqdm(test_loader, ascii=True, desc='Evaluate')):
-        batch_u_id = batch_data['u_id']
-
-        batch_pred = model.inference(batch_u_id)
-
-        batch_pred = batch_pred.cpu().numpy()
-        batch_u_id = batch_u_id.cpu().numpy()
-
-        user_batch_rating_uid = zip(batch_pred, batch_u_id)
-        batch_result = pool.map(test_one_user, user_batch_rating_uid)
-
-        for re in batch_result:
-            result['precision'] += re['precision']/_n_test_users
-            result['recall'] += re['recall']/_n_test_users
-            result['ndcg'] += re['ndcg']/_n_test_users
-            result['hit_ratio'] += re['hit_ratio']/_n_test_users
-
-    pool.close()
     return result
+
+
+
+            
+
+
+
+    

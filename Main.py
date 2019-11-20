@@ -13,7 +13,7 @@ from copy import deepcopy
 import pickle
 
 from utility.parser import parse_args
-from utility.test_model import test
+from utility.test_model import test_v2
 from utility.helper import early_stopping
 from utility.parser import parse_args
 
@@ -115,7 +115,8 @@ def save_model(file_name, model, config):
 
 
 def build_sampler_graph(n_nodes, edge_threshold, graph):
-    adj_matrix = torch.zeros(n_nodes, edge_threshold*2)
+    # adj_matrix = torch.zeros(n_nodes, edge_threshold*2)
+    adj_matrix = torch.zeros(n_nodes, edge_threshold)
     edge_matrix = torch.zeros(n_nodes, edge_threshold)
 
     """sample neighbors for each node"""
@@ -129,7 +130,10 @@ def build_sampler_graph(n_nodes, edge_threshold, graph):
             node_id = [node]*(edge_threshold-len(neighbors))
             sampled_edge = neighbors + neg_id
             edges = neighbors + node_id
-        sampled_edge += random.sample(range(CKG.item_range[0], CKG.item_range[1]+1), edge_threshold)
+        
+        """concatenate sampled edge with random edge"""
+        # sampled_edge += random.sample(range(CKG.item_range[0], CKG.item_range[1]+1), edge_threshold)
+        
         adj_matrix[node] = torch.tensor(sampled_edge, dtype=torch.long)
         edge_matrix[node] = torch.tensor(edges, dtype=torch.long)
 
@@ -198,14 +202,15 @@ def train(train_loader, test_loader, graph, data_config, args_config):
                                                                 cur_epoch, 
                                                                 avg_reward)
 
+
         """Test"""
         if cur_epoch % args_config.show_step == 0:
             with torch.no_grad():
                 t2 = time()
-                ret = test(recommender, test_loader, args_config.Ks, graph)
+                ret = test_v2(recommender, args_config.Ks, graph)
 
             t3 = time()
-            loss_loger.append(loss)
+            # loss_loger.append(loss)
             rec_loger.append(ret['recall'])
             pre_loger.append(ret['precision'])
             ndcg_loger.append(ret['ndcg'])
