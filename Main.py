@@ -115,8 +115,7 @@ def save_model(file_name, model, config):
 
 
 def build_sampler_graph(n_nodes, edge_threshold, graph):
-    # adj_matrix = torch.zeros(n_nodes, edge_threshold*2)
-    adj_matrix = torch.zeros(n_nodes, edge_threshold)
+    adj_matrix = torch.zeros(n_nodes, edge_threshold*2)
     edge_matrix = torch.zeros(n_nodes, edge_threshold)
 
     """sample neighbors for each node"""
@@ -132,7 +131,7 @@ def build_sampler_graph(n_nodes, edge_threshold, graph):
             edges = neighbors + node_id
         
         """concatenate sampled edge with random edge"""
-        # sampled_edge += random.sample(range(CKG.item_range[0], CKG.item_range[1]+1), edge_threshold)
+        sampled_edge += random.sample(range(CKG.item_range[0], CKG.item_range[1]+1), edge_threshold)
         
         adj_matrix[node] = torch.tensor(sampled_edge, dtype=torch.long)
         edge_matrix[node] = torch.tensor(edges, dtype=torch.long)
@@ -210,7 +209,7 @@ def train(train_loader, test_loader, graph, data_config, args_config):
                 ret = test_v2(recommender, args_config.Ks, graph)
 
             t3 = time()
-            # loss_loger.append(loss)
+            loss_loger.append(loss)
             rec_loger.append(ret['recall'])
             pre_loger.append(ret['precision'])
             ndcg_loger.append(ret['ndcg'])
