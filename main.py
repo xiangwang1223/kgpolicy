@@ -1,24 +1,23 @@
 import os
 import random
-from time import time
-from pathlib import Path
 
 import torch
 import numpy as np
 
+from time import time
 from tqdm import tqdm
 from copy import deepcopy
+from pathlib import Path
 from prettytable import PrettyTable
 
 from common.test import test_v2
 from common.utils import early_stopping, print_dict
-from common.config.parser import parse_args
-
+from common.config import parse_args
+from common.dataset import CKGData
 from common.dataset.build import build_loader
-from common.dataset.preprocess import CKGData
 
-from modules.recommender.MF import MF
-from modules.sampler.kgpolicy import KGPolicy
+from modules.sampler import KGPolicy
+from modules.recommender import MF
 
 
 def train_one_epoch(
@@ -50,9 +49,9 @@ def train_one_epoch(
         """Train recommender using negtive item provided by sampler"""
         recommender_optim.zero_grad()
 
-        users = batch_data["u_id"]
         neg = batch_data["neg_i_id"]
         pos = batch_data["pos_i_id"]
+        users = batch_data["u_id"]
 
         selected_neg_items_list, _ = sampler(batch_data, adj_matrix, edge_matrix)
         selected_neg_items = selected_neg_items_list[-1, :]
@@ -98,8 +97,8 @@ def train_one_epoch(
 
         """record loss in an epoch"""
         loss += loss_batch
-        base_loss += base_loss_batch
         reg_loss += reg_loss_batch
+        base_loss += base_loss_batch
 
     avg_reward = epoch_reward / num_batch
     train_res = PrettyTable()
