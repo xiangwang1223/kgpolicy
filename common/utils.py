@@ -70,3 +70,14 @@ def unfreeze(model):
     for param in model.parameters():
         param.requires_grad = True
     return model
+
+
+def print_dict(dic):
+    """print dictionary using specified format
+
+    example: {"a": 1, "b": 2}
+    output:
+            "a": 1
+            "b": 2
+    """
+    print('\n'.join('{:10s}: {}'.format(key, values) for key, values in dic.items()))
