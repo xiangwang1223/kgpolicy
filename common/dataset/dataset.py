@@ -26,7 +26,7 @@ class TrainGenerator(Dataset):
         user_dict = self.user_dict
         # randomly select one user.
         u_id = random.sample(self.exist_users, 1)[0]
-        out_dict['u_id'] = u_id
+        out_dict["u_id"] = u_id
 
         # randomly select one positive item.
         pos_items = user_dict[u_id]
@@ -35,16 +35,18 @@ class TrainGenerator(Dataset):
         pos_idx = np.random.randint(low=0, high=n_pos_items, size=1)[0]
         pos_i_id = pos_items[pos_idx]
 
-        out_dict['pos_i_id'] = pos_i_id
+        out_dict["pos_i_id"] = pos_i_id
 
         neg_i_id = self.get_random_neg(pos_items, [])
-        out_dict['neg_i_id'] = neg_i_id
+        out_dict["neg_i_id"] = neg_i_id
 
         return out_dict
 
     def get_random_neg(self, pos_items, selected_items):
         while True:
-            neg_i_id = np.random.randint(low=self.low_item_index, high=self.high_item_index, size=1)[0]
+            neg_i_id = np.random.randint(
+                low=self.low_item_index, high=self.high_item_index, size=1
+            )[0]
 
             if neg_i_id not in pos_items and neg_i_id not in selected_items:
                 break
@@ -63,6 +65,6 @@ class TestGenerator(Dataset):
         batch_data = {}
 
         u_id = self.users_to_test[index]
-        batch_data['u_id'] = u_id
+        batch_data["u_id"] = u_id
 
         return batch_data

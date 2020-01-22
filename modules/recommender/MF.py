@@ -9,8 +9,8 @@ class MF(nn.Module):
         super(MF, self).__init__()
         self.args_config = args_config
         self.data_config = data_config
-        self.n_users = data_config['n_users']
-        self.n_items = data_config['n_items']
+        self.n_users = data_config["n_users"]
+        self.n_items = data_config["n_items"]
 
         self.emb_size = args_config.emb_size
         self.regs = eval(args_config.regs)
@@ -18,8 +18,10 @@ class MF(nn.Module):
         self.all_embed = self._init_weight()
 
     def _init_weight(self):
-        all_embed = nn.Parameter(torch.FloatTensor(self.n_users + self.n_items, self.emb_size))
-        
+        all_embed = nn.Parameter(
+            torch.FloatTensor(self.n_users + self.n_items, self.emb_size)
+        )
+
         if self.args_config.pretrain_r:
             all_embed.data = self.data_config["all_embed"]
         else:
@@ -61,7 +63,9 @@ class MF(nn.Module):
         return torch.sum(t ** 2) / 2
 
     def inference(self, users):
-        user_embed, item_embed = torch.split(self.all_embed, [self.n_users, self.n_items], dim=0)
+        user_embed, item_embed = torch.split(
+            self.all_embed, [self.n_users, self.n_items], dim=0
+        )
         user_embed = user_embed[users]
         prediction = torch.matmul(user_embed, item_embed.t())
         return prediction
@@ -71,12 +75,12 @@ class MF(nn.Module):
         i_e = self.all_embed[items]
 
         u_e = u_e.unsqueeze(dim=1)
-        ranking = torch.sum(u_e*i_e, dim=2)
+        ranking = torch.sum(u_e * i_e, dim=2)
         ranking = ranking.squeeze()
 
         return ranking
 
     def __str__(self):
-        return "recommender using BPRMF, embedding size {}".format(self.args_config.emb_size)
-
-
+        return "recommender using BPRMF, embedding size {}".format(
+            self.args_config.emb_size
+        )

@@ -1,11 +1,7 @@
 import collections
 import numpy as np
 import networkx as nx
-import pickle
-import os
 from tqdm import tqdm
-from utility.helper import ensure_dir
-from time import time
 
 
 class CFData(object):
@@ -13,8 +9,8 @@ class CFData(object):
         self.args_config = args_config
 
         path = args_config.data_path + args_config.dataset
-        train_file = path + '/train.dat'
-        test_file = path + '/test.dat'
+        train_file = path + "/train.dat"
+        test_file = path + "/test.dat"
 
         # ----------get number of users and items & then load rating data from train_file & test_file------------
         self.train_data = self._generate_interactions(train_file)
@@ -30,10 +26,10 @@ class CFData(object):
     def _generate_interactions(file_name):
         inter_mat = list()
 
-        lines = open(file_name, 'r').readlines()
+        lines = open(file_name, "r").readlines()
         for l in lines:
             tmps = l.strip()
-            inters = [int(i) for i in tmps.split(' ')]
+            inters = [int(i) for i in tmps.split(" ")]
 
             u_id, pos_ids = inters[0], inters[1:]
             pos_ids = list(set(pos_ids))
@@ -70,19 +66,23 @@ class CFData(object):
             n_id = max_id - min_id + 1
             return (min_id, max_id), n_id
 
-        self.user_range, self.n_users = _id_range(self.train_data, self.test_data, idx=0)
-        self.item_range, self.n_items = _id_range(self.train_data, self.test_data, idx=1)
+        self.user_range, self.n_users = _id_range(
+            self.train_data, self.test_data, idx=0
+        )
+        self.item_range, self.n_items = _id_range(
+            self.train_data, self.test_data, idx=1
+        )
         self.n_train = len(self.train_data)
         self.n_test = len(self.test_data)
 
-        print('-'*50)
-        print('-     user_range: (%d, %d)' % (self.user_range[0], self.user_range[1]))
-        print('-     item_range: (%d, %d)' % (self.item_range[0], self.item_range[1]))
-        print('-        n_train: %d' % self.n_train)
-        print('-         n_test: %d' % self.n_test)
-        print('-        n_users: %d' % self.n_users)
-        print('-        n_items: %d' % self.n_items)
-        print('-'*50)
+        print("-" * 50)
+        print("-     user_range: (%d, %d)" % (self.user_range[0], self.user_range[1]))
+        print("-     item_range: (%d, %d)" % (self.item_range[0], self.item_range[1]))
+        print("-        n_train: %d" % self.n_train)
+        print("-         n_test: %d" % self.n_test)
+        print("-        n_users: %d" % self.n_users)
+        print("-        n_items: %d" % self.n_items)
+        print("-" * 50)
 
 
 class KGData(object):
@@ -92,7 +92,7 @@ class KGData(object):
         self.relation_start_id = relation_start_id
 
         path = args_config.data_path + args_config.dataset
-        kg_file = path + '/kg_final.txt'
+        kg_file = path + "/kg_final.txt"
 
         # ----------get number of entities and relations & then load kg data from kg_file ------------.
         self.kg_data, self.kg_dict, self.relation_dict = self._load_kg(kg_file)
@@ -140,8 +140,8 @@ class KGData(object):
 
     def _statistic_kg_triples(self):
         def _id_range(kg_mat, idx):
-            min_id = min(min(kg_mat[:, idx]), min(kg_mat[:, 2-idx]))
-            max_id = max(max(kg_mat[:, idx]), max(kg_mat[:, 2-idx]))
+            min_id = min(min(kg_mat[:, idx]), min(kg_mat[:, 2 - idx]))
+            max_id = max(max(kg_mat[:, idx]), max(kg_mat[:, 2 - idx]))
             n_id = max_id - min_id + 1
             return (min_id, max_id), n_id
 
@@ -149,21 +149,31 @@ class KGData(object):
         self.relation_range, self.n_relations = _id_range(self.kg_data, idx=1)
         self.n_kg_triples = len(self.kg_data)
 
-        print('-'*50)
-        print('-   entity_range: (%d, %d)' % (self.entity_range[0], self.entity_range[1]))
-        print('- relation_range: (%d, %d)' % (self.relation_range[0], self.relation_range[1]))
-        print('-     n_entities: %d' % self.n_entities)
-        print('-    n_relations: %d' % self.n_relations)
-        print('-   n_kg_triples: %d' % self.n_kg_triples)
-        print('-'*50)
+        print("-" * 50)
+        print(
+            "-   entity_range: (%d, %d)" % (self.entity_range[0], self.entity_range[1])
+        )
+        print(
+            "- relation_range: (%d, %d)"
+            % (self.relation_range[0], self.relation_range[1])
+        )
+        print("-     n_entities: %d" % self.n_entities)
+        print("-    n_relations: %d" % self.n_relations)
+        print("-   n_kg_triples: %d" % self.n_kg_triples)
+        print("-" * 50)
 
 
 class CKGData(CFData, KGData):
     def __init__(self, args_config):
         CFData.__init__(self, args_config=args_config)
-        KGData.__init__(self, args_config=args_config, entity_start_id=self.n_users, relation_start_id=2)
+        KGData.__init__(
+            self,
+            args_config=args_config,
+            entity_start_id=self.n_users,
+            relation_start_id=2,
+        )
         self.args_config = args_config
-        
+
         self.ckg_graph = self._combine_cf_kg()
 
     def _combine_cf_kg(self):
@@ -176,12 +186,12 @@ class CKGData(CFData, KGData):
         # ... ids of other entities in range of [#users + #items, #users + #entities)
         # ... ids of relations in range of [0, 2 + 2 * #kg relations), including two 'interact' and 'interacted_by'.
         ckg_graph = nx.MultiDiGraph()
-        print('Begin to load interaction triples ...')
+        print("Begin to load interaction triples ...")
         for u_id, i_id in tqdm(cf_mat, ascii=True):
             ckg_graph.add_edges_from([(u_id, i_id)], r_id=0)
             ckg_graph.add_edges_from([(i_id, u_id)], r_id=1)
 
-        print('\nBegin to load knowledge graph triples ...')
+        print("\nBegin to load knowledge graph triples ...")
         for h_id, r_id, t_id in tqdm(kg_mat, ascii=True):
             ckg_graph.add_edges_from([(h_id, t_id)], r_id=r_id)
         return ckg_graph

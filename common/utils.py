@@ -17,37 +17,43 @@ def ensure_dir(dir_path):
 
 
 def uni2str(unicode_str):
-    return str(unicode_str.encode('ascii', 'ignore')).replace('\n', '').strip()
+    return str(unicode_str.encode("ascii", "ignore")).replace("\n", "").strip()
 
 
 def has_numbers(input_string):
-    return bool(re.search(r'\d', input_string))
+    return bool(re.search(r"\d", input_string))
 
 
 def del_multichar(input_string, chars):
     for ch in chars:
-        input_string = input_string.replace(ch, '')
+        input_string = input_string.replace(ch, "")
     return input_string
 
 
 def merge_two_dicts(x, y):
-    z = x.copy()   # start with x's keys and values
-    z.update(y)    # modifies z with y's keys and values & returns None
+    z = x.copy()  # start with x's keys and values
+    z.update(y)  # modifies z with y's keys and values & returns None
     return z
 
 
-def early_stopping(log_value, best_value, stopping_step, expected_order='acc', flag_step=100):
+def early_stopping(
+    log_value, best_value, stopping_step, expected_order="acc", flag_step=100
+):
     # early stopping strategy:
-    assert expected_order in ['acc', 'dec']
+    assert expected_order in ["acc", "dec"]
 
-    if (expected_order == 'acc' and log_value >= best_value) or (expected_order == 'dec' and log_value <= best_value):
+    if (expected_order == "acc" and log_value >= best_value) or (
+        expected_order == "dec" and log_value <= best_value
+    ):
         stopping_step = 0
         best_value = log_value
     else:
         stopping_step += 1
 
     if stopping_step >= flag_step:
-        print("Early stopping is trigger at step: {} log:{}".format(flag_step, log_value))
+        print(
+            "Early stopping is trigger at step: {} log:{}".format(flag_step, log_value)
+        )
         should_stop = True
     else:
         should_stop = False
@@ -62,5 +68,5 @@ def freeze(model):
 
 def unfreeze(model):
     for param in model.parameters():
-        param.requires_grad = True 
+        param.requires_grad = True
     return model
