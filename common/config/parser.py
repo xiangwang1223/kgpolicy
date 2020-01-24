@@ -65,7 +65,7 @@ def parse_args():
     )
     parser.add_argument("--num_threads", type=int, default=4, help="number of threads.")
     parser.add_argument("--epoch", type=int, default=400, help="Number of epoch.")
-    parser.add_argument("--show_step", type=int, default=3, help="test step.")
+    parser.add_argument("--show_step", type=int, default=1, help="test step.")
     parser.add_argument(
         "--adj_epoch", type=int, default=1, help="build adj matrix per _ epoch"
     )
