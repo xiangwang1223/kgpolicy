@@ -103,7 +103,9 @@ def train_one_epoch(
     avg_reward = epoch_reward / num_batch
     train_res = PrettyTable()
     train_res.field_names = ["Epoch", "Loss", "BPR-Loss", "Regulation", "AVG-Reward"]
-    train_res.add_row([cur_epoch, loss.item(), base_loss.item(), reg_loss.item(), avg_reward.item()])
+    train_res.add_row(
+        [cur_epoch, loss.item(), base_loss.item(), reg_loss.item(), avg_reward.item()]
+    )
     print(train_res)
 
     return loss, base_loss, reg_loss, avg_reward

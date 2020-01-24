@@ -80,4 +80,4 @@ def print_dict(dic):
             "a": 1
             "b": 2
     """
-    print('\n'.join('{:10s}: {}'.format(key, values) for key, values in dic.items()))
+    print("\n".join("{:10s}: {}".format(key, values) for key, values in dic.items()))
