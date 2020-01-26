@@ -9,7 +9,8 @@ def get_score(model, n_users, n_items, train_user_dict):
 
     score_matrix = torch.matmul(u_e, i_e.t())
     for u, pos in train_user_dict.items():
-        score_matrix[u][pos - n_users] = -1e5
+        idx = pos.index(-1) if -1 in pos else len(pos)
+        score_matrix[u][pos[:idx] - n_users] = -1e5
 
     return score_matrix
 
