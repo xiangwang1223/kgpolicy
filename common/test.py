@@ -15,10 +15,6 @@ def get_score(model, n_users, n_items, train_user_dict, s, t):
         idx = pos.index(-1) if -1 in pos else len(pos)
         score_matrix[u-s][pos[:idx] - n_users] = -1e5
 
-    # for u, pos in train_user_dict.items():
-    #     idx = pos.index(-1) if -1 in pos else len(pos)
-    #     score_matrix[u][pos[:idx] - n_users] = -1e5
-
     return score_matrix
 
 
@@ -70,8 +66,6 @@ def test_v2(model, ks, ckg, n_batchs=4):
             topk_index = topk_index.cpu().numpy() + n_users
 
             for u in range(s, t):
-            # for test_u, gt_pos in test_user_dict.items():
-            #     topk = topk_index[test_u]
                 gt_pos = test_user_dict[u]
                 topk = topk_index[u - s]
                 num_pos = len(gt_pos)
