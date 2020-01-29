@@ -1,59 +1,71 @@
-# KGPolicy
+# KG-Policy
 
 Reinforced Negative Sampling over Knowledge Graph for Recommendation
 
-## Getting Started
 
+---
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. 
 
-### Prerequisites
+### Data and Source Code
 
-What things you need to install the software and how to install them
-
-```
-Give examples
-```
-
-### Installing
-
-A step by step series of examples that tell you how to get a development env running
-
-Say what the step will be
-
-```
-Give the example
+Create a new directory for this repo
+```bash
+➜ mkdir KG-Policy
+➜ cd KG-Policy
 ```
 
-And repeat
-
+Get dataset and pretrain model
+```bash
+➜ wget https://github.com/xiangwang1223/kgpolicy/releases/download/v1.0/Data.zip
+➜ unzip Data.zip
 ```
-until finished
+
+Get source code
+```bash
+➜ git clone https://github.com/xiangwang1223/kgpolicy.git
 ```
 
-End with an example of getting some data out of the system or using it for a little demo
+### Environment
 
-## Running the tests
+Please use [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) to manage the environment.
 
-Explain how to run the automated tests for this system
+Switch to source code dir 
+```
+➜ cd kgpolicy
+```
 
-## Built With
 
-* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
-* [Maven](https://maven.apache.org/) - Dependency Management
-* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
+Create a new environment
+```bash
+➜ conda create -n geo python=3.6
+➜ conda activate geo
+```
 
-## Authors
+Ensure python version is `3.6`.
 
-* **Billie Thompson** - *Initial work* - [PurpleBooth](https://github.com/PurpleBooth)
+Then install all requirements for this project.
+```bashsetup.sh
+➜ bash setup.sh
+```
 
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
+Sometimes there is mismatch between `cuda` version and `torch_geometric` version. If you encounter this problem, please try to install a correct `cuda` version or leave us a message.
 
-## License
+If you prefer to install all dependences by yourself, please ensure `torch_geometric` is properly installed.
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+After doing these, now it's ready to train KG-Policy model.
 
-## Acknowledgments
+### Train
 
-* Hat tip to anyone whose code was used
-* Inspiration
-* etc
+Train KG-Policy on `last-fm`
+```bash
+➜ python main.py
+```
+Also, KG-Policy can be trained on other two datasets, `amazon-book` and `yelp2018`, check it out in `Data`.
+
+To run on other two datasets
+```bash
+➜ python main.py --dataset yelp2018 --model_path model/best_yelp.ckpt --regs 1e-4
+➜ python main.py --dataset amazon-book --model_path model/best_ab.ckpt
+```
+
+There are also some others arguments can be tuned for a better performance, check it out at `common/config/parser.py`.
