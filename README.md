@@ -64,8 +64,41 @@ Also, KG-Policy can be trained on other two datasets, `amazon-book` and `yelp201
 
 To run on other two datasets
 ```bash
-➜ python main.py --dataset yelp2018 --model_path model/best_yelp.ckpt --regs 1e-4
-➜ python main.py --dataset amazon-book --model_path model/best_ab.ckpt
+➜ python main.py --regs 1e-4 --dataset yelp2018 --model_path model/best_yelp.ckpt 
+➜ python main.py --regs 1e-4 --dataset amazon-book --model_path model/best_ab.ckpt 
 ```
 
-There are also some others arguments can be tuned for a better performance, check it out at `common/config/parser.py`.
+Note that the default `regs` is `1e-5`, while we use `1e-4` as `regs` when training `amazon-book` and `yelp2018`. There are also some others parameters can be tuned for a better performance, check it out at `common/config/parser.py`.
+
+### Experiment result
+
+dataset: last-fm
+
+|    Model    | Recall@20 | NDCG@20 |
+| :---------: | :-------: | :----------: |
+|     RNS     |  0.0687   |    0.0584    |  
+|     DNS     |  0.0874   |    0.0746    | 
+|    IRGAN    |  0.0755   |    0.0627    | 
+|   KG-Policy |  0.0957   |    0.0837    |
+
+dataset: yelp2018
+
+|    Model    | Recall@20 | NDCG@20 |
+| :---------: | :-------: | :----------: |
+|     RNS     |  0.0465   |    0.0298    | 
+|     DNS     |  0.0666   |    0.0429    | 
+|    IRGAN    |  0.0538   |    0.0342    | 
+|   KG-Policy |  0.0746   |    0.0489    |         
+
+dataset: amazon-book
+
+|    Model    | Recall@20 | NDCG@20 |
+| :---------: | :-------: | :----------: |
+|     RNS     |  0.1239   |    0.0647    |
+|     DNS     |  0.1460   |    0.0775    |
+|    IRGAN    |  0.1330   |    0.0693    |
+|   KG-Policy |  0.1609   |    0.0890    |    
+
+The results are different from what reported in our paper, as we corrected how to calculate `NDCG`. Check it at `common/test.py`. 
+
+Also, we use pretrained model in KG-Policy training process. The pretrained model is coming from `DNS`, a variant of `BPR-MF`. We implement this algorithm in another repo. 
