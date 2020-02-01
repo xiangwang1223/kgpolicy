@@ -35,5 +35,5 @@ pip install torch==1.1.0
 
 DOCROOT=$(pwd)
 echo "${green}[INFO] Current path" $DOCROOT
-pip install -r "$DOCROOT/utility/requirements.txt"
+pip install -r "$DOCROOT/requirements.txt"
 echo ${green}[INFO] SETUP FINISHED

@@ -56,7 +56,7 @@ def parse_args():
         help="load pretrained sampler data or not",
     )
 
-    # ------------------------- experimental settings specific for training --------------------------------------------
+    # ------------------------- experimental settings specific for recommender --------------------------------------------
     parser.add_argument(
         "--batch_size", type=int, default=1024, help="batch size for training."
     )
@@ -65,7 +65,7 @@ def parse_args():
     )
     parser.add_argument("--num_threads", type=int, default=4, help="number of threads.")
     parser.add_argument("--epoch", type=int, default=400, help="Number of epoch.")
-    parser.add_argument("--show_step", type=int, default=1, help="test step.")
+    parser.add_argument("--show_step", type=int, default=3, help="test step.")
     parser.add_argument(
         "--adj_epoch", type=int, default=1, help="build adj matrix per _ epoch"
     )
@@ -87,7 +87,7 @@ def parse_args():
     parser.add_argument(
         "--out_dir", type=str, default="./weights/", help="output directory for model"
     )
-    parser.add_argument("--flag_step", type=int, default=32, help="early stop steps")
+    parser.add_argument("--flag_step", type=int, default=64, help="early stop steps")
     parser.add_argument(
         "--gamma", type=float, default=0.99, help="gamma for reward accumulation"
     )
