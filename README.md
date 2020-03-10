@@ -1,66 +1,81 @@
-# KG-Policy
+# KGPolicy: Knowledge Graph Policy Network
 
-Reinforced Negative Sampling over Knowledge Graph for Recommendation
+This is our Pytorch implementation for the paper:
+
+>Xiang Wang, Yaokun Xu, Xiangnan He, Yixin Cao, Meng Wang and Tat-Seng Chua (2020). Reinforced Negative Sampling over Knowledge Graph for Recommendation. [Paper in personal websit](http://staff.ustc.edu.cn/~hexn/papers/www20-KGPolicy.pdf). In WWW'2020, Taipei, Taiwan, China, April 20–24, 2020.
+
+Author: Dr. Xiang Wang (xiangwang at u.nus.edu) and Mr. Yaokun Xu (xuyaokun98@gmail.com)
+
+## Introduction
+Knowledge Graph Policy Network (KGPolicy) is a new negative sampling framework tailored to knowledge-aware personalized recommendation. Exploiting rich connections of knowledge graph, KGPolicy is able to discover high-quality (i.e., informative and factual) items as negative training instances, thus providing better recommendation.
 
 
----
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. 
+## Citation 
+If you want to use our codes and datasets in your research, please cite:
+```
+@inproceedings{KGPolicy20,
+  author    = {Xiang Wang and
+               Yaokun Xu and
+               Xiangnan He and
+               Yixin Cao and
+               Meng Wang and
+               Tat{-}Seng Chua},
+  title     = {Reinforced Negative Sampling over Knowledge Graph for Recommendation},
+  booktitle = {{WWW}},
+  year      = {2020}
+}
+```
+## Reproducibility
+To demonstrate the reporducibility of the best performance reported in our paper and faciliate researchers for development and testing purpose, we provide the instructions as follows. Later, we will release the other baselines.
 
-### Data and Source Code
+### 1. Data and Source Code
+We follow our previous work, KGAT, and you can get the detailed information about the datasets in [KGAT](https://github.com/xiangwang1223/knowledge_graph_attention_network).
 
-Create a new directory for this repo
+i. Create a new directory for this repo
 ```bash
 ➜ mkdir KG-Policy
 ➜ cd KG-Policy
 ```
 
-Get dataset and pretrain model
+ii. Get dataset and pretrain model
 ```bash
 ➜ wget https://github.com/xiangwang1223/kgpolicy/releases/download/v1.0/Data.zip
 ➜ unzip Data.zip
 ```
 
-Get source code
+iii. Get source code
 ```bash
 ➜ git clone https://github.com/xiangwang1223/kgpolicy.git
 ```
 
-### Environment
+### 2. Environment
 
 Please use [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) to manage the environment.
 
-Switch to source code dir 
+i. Switch to source code dir 
 ```
 ➜ cd kgpolicy
 ```
 
-
-Create a new environment
+ii. Create a new environment
 ```bash
 ➜ conda create -n geo python=3.6
 ➜ conda activate geo
 ```
 
-Ensure python version is `3.6`.
-
-Then install all requirements for this project.
+iii. Ensure python version is `3.6`. Then install all requirements for this project.
 ```bashsetup.sh
 ➜ bash setup.sh
 ```
 
-Sometimes there is mismatch between `cuda` version and `torch_geometric` version. If you encounter this problem, please try to install a correct `cuda` version or leave us a message.
+Note that: Sometimes there is mismatch between `cuda` version and `torch_geometric` version. If you encounter this problem, please try to install a correct `cuda` version. If you prefer to install all dependences by yourself, please ensure `torch_geometric` is properly installed. After doing these, now it's ready to train KG-Policy model.
 
-If you prefer to install all dependences by yourself, please ensure `torch_geometric` is properly installed.
+### 3. Train
 
-After doing these, now it's ready to train KG-Policy model.
-
-### Train
-
-Train KG-Policy on `last-fm`
+i. Train KG-Policy on `last-fm`. Also, KG-Policy can be trained on other two datasets, `amazon-book` and `yelp2018`, check it out in `Data`.
 ```bash
 ➜ python main.py
 ```
-Also, KG-Policy can be trained on other two datasets, `amazon-book` and `yelp2018`, check it out in `Data`.
 
 To run on other two datasets
 ```bash
@@ -68,9 +83,10 @@ To run on other two datasets
 ➜ python main.py --regs 1e-4 --dataset amazon-book --model_path model/best_ab.ckpt 
 ```
 
-Note that the default `regs` is `1e-5`, while we use `1e-4` as `regs` when training `amazon-book` and `yelp2018`. There are also some others parameters can be tuned for a better performance, check it out at `common/config/parser.py`.
+Note that: The default `regs` is `1e-5`, while we use `1e-4` as `regs` when training `amazon-book` and `yelp2018`. There are also some others parameters can be tuned for a better performance, check it out at `common/config/parser.py`.
 
-### Experiment result
+### 4. Experiment result
+
 
 dataset: last-fm
 
