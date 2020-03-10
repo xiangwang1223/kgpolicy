@@ -4,7 +4,7 @@ This is our Pytorch implementation for the paper:
 
 >Xiang Wang, Yaokun Xu, Xiangnan He, Yixin Cao, Meng Wang and Tat-Seng Chua (2020). Reinforced Negative Sampling over Knowledge Graph for Recommendation. [Paper in personal websit](http://staff.ustc.edu.cn/~hexn/papers/www20-KGPolicy.pdf). In WWW'2020, Taipei, Taiwan, China, April 20–24, 2020.
 
-Author: Dr. Xiang Wang (xiangwang at u.nus.edu) and Mr. Yaokun Xu (xuyaokun98@gmail.com)
+Author: Dr. Xiang Wang (xiangwang at u.nus.edu) and Mr. Yaokun Xu (xuyaokun98 at gmail.com)
 
 ## Introduction
 Knowledge Graph Policy Network (KGPolicy) is a new negative sampling framework tailored to knowledge-aware personalized recommendation. Exploiting rich connections of knowledge graph, KGPolicy is able to discover high-quality (i.e., informative and factual) items as negative training instances, thus providing better recommendation.
