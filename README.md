@@ -2,7 +2,7 @@
 
 This is our Pytorch implementation for the paper:
 
->Xiang Wang, Yaokun Xu, Xiangnan He, Yixin Cao, Meng Wang and Tat-Seng Chua (2020). Reinforced Negative Sampling over Knowledge Graph for Recommendation. [Paper in arXiv](https://arxiv.org/abs/2003.05753). In WWW'2020, Taipei, Taiwan, China, April 20–24, 2020.
+>Xiang Wang, Yaokun Xu, Xiangnan He, Yixin Cao, Meng Wang and Tat-Seng Chua (2020). Reinforced Negative Sampling over Knowledge Graph for Recommendation. [Paper in ACM DL](https://dl.acm.org/doi/abs/10.1145/3366423.3380098) or [Paper in arXiv](https://arxiv.org/abs/2003.05753). In WWW'2020, Taipei, Taiwan, China, April 20–24, 2020.
 
 Author: Dr. Xiang Wang (xiangwang at u.nus.edu) and Mr. Yaokun Xu (xuyaokun98 at gmail.com)
 
