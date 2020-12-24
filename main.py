@@ -3,7 +3,7 @@ import random
 
 import torch
 import numpy as np
-
+import pdb
 from time import time
 from tqdm import tqdm
 from copy import deepcopy
@@ -18,6 +18,7 @@ from common.dataset.build import build_loader
 
 from modules.sampler import KGPolicy
 from modules.recommender import MF
+from modules.recommender.KGAT import *
 
 
 def train_one_epoch(
@@ -61,8 +62,11 @@ def train_one_epoch(
             selected_neg_items.unsqueeze(1) == train_set.long(), dim=1
         ).byte()
         selected_neg_items[in_train] = neg[in_train]
+        if args_config.modeltype == "MF":
+            base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items)
+        elif args_config.modeltype == "KGAT":
+            base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items, edge_matrix)
 
-        base_loss_batch, reg_loss_batch = recommender(users, pos, selected_neg_items)
         loss_batch = base_loss_batch + reg_loss_batch
 
         loss_batch.backward()
@@ -90,6 +94,7 @@ def train_one_epoch(
         for i, r in enumerate(reward_batch.flip(0)):
             R = r + gamma * R
             reward[n - i] = R
+        # pdb.set_trace()
 
         reinforce_loss = -1 * torch.sum(reward_batch * selected_neg_prob_list)
         reinforce_loss.backward()
@@ -185,7 +190,10 @@ def train(train_loader, test_loader, graph, data_config, args_config):
         all_embed = torch.cat((paras["user_para"], paras["item_para"]))
         data_config["all_embed"] = all_embed
 
-    recommender = MF(data_config=data_config, args_config=args_config)
+    if args_config.modeltype == "MF":
+        recommender = MF(data_config=data_config, args_config=args_config)
+    elif args_config.modeltype == "KGAT":
+        recommender = KGAT(data_config=data_config, args_config=args_config)
     sampler = KGPolicy(recommender, data_config, args_config)
 
     if torch.cuda.is_available():
@@ -205,6 +213,7 @@ def train(train_loader, test_loader, graph, data_config, args_config):
 
     for epoch in range(args_config.epoch):
         if epoch % args_config.adj_epoch == 0:
+            print("Begin build sample graph\n")
             """sample adjacency matrix"""
             adj_matrix, edge_matrix = build_sampler_graph(
                 data_config["n_nodes"], args_config.edge_threshold, graph.ckg_graph

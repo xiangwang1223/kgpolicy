@@ -10,6 +10,14 @@
 # - sklearn=0.21.2
 # -----------------------------------------------------
 
+current_gcc_ver="$(gcc -dumpversion)"
+required_gcc_ver="4.9.0"
+if [ "$(printf '%s\n' "$required_gcc_ver" "$current_gcc_ver" | sort -V | head -n1)" = "$required_gcc_ver" ]; then 
+    echo "GCC version ${current_gcc_ver}"
+else
+    echo "GCC version less than ${required_gcc_ver}"
+    exit 1
+fi
 
 MAJOR=$(python -c 'import sys; print(sys.version_info.major)')
 MINOR=$(python -c 'import sys; print(sys.version_info.minor)')

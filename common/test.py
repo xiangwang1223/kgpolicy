@@ -4,8 +4,8 @@ import numpy as np
 from tqdm import tqdm
 
 
-def get_score(model, n_users, n_items, train_user_dict, s, t):
-    u_e, i_e = torch.split(model.all_embed, [n_users, n_items])
+def get_score(model, n_users, n_items, n_entities, train_user_dict, s, t):
+    u_e, i_e, _ = torch.split(model.all_embed, [n_users, n_items, n_entities - n_items])
 
     u_e = u_e[s:t, :]
 
@@ -50,6 +50,7 @@ def test_v2(model, ks, ckg, n_batchs=4):
     }
 
     n_users = model.n_users
+    n_entities = model.n_entities
     batch_size = n_users // n_batchs
     for batch_id in tqdm(range(n_batchs), ascii=True, desc="Evaluate"):
         s = batch_size * batch_id
@@ -59,7 +60,7 @@ def test_v2(model, ks, ckg, n_batchs=4):
         if s == t:
             break
 
-        score_matrix = get_score(model, n_users, n_items, train_user_dict, s, t)
+        score_matrix = get_score(model, n_users, n_items, n_entities, train_user_dict, s, t)
         for i, k in enumerate(ks):
             precision, recall, ndcg, hr = 0, 0, 0, 0
             _, topk_index = torch.topk(score_matrix, k)

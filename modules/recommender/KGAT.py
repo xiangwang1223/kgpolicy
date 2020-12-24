@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+import pdb
 import torch_geometric as geometric
 
 
@@ -33,6 +34,7 @@ class KGAT(nn.Module):
         self.data_config = data_config
         self.n_users = data_config["n_users"]
         self.n_items = data_config["n_items"]
+        self.n_entities = data_config["n_entities"]
         self.n_nodes = data_config["n_nodes"]
 
         """set input and output channel manually"""
@@ -108,17 +110,17 @@ class KGAT(nn.Module):
         reg_loss = self._l2_loss(u_e) + self._l2_loss(pos_e) + self._l2_loss(neg_e)
         reg_loss = self.regs * reg_loss
 
-        loss = bpr_loss + reg_loss
+        # loss = bpr_loss + reg_loss
 
-        return loss, bpr_loss, reg_loss
+        return bpr_loss, reg_loss
 
     def get_reward(self, users, pos_items, neg_items):
         u_e = self.all_embed[users]
         pos_e = self.all_embed[pos_items]
         neg_e = self.all_embed[neg_items]
 
-        neg_scores = torch.sum(u_e * neg_e, dim=1)
-        ij = torch.sum(neg_e * pos_e, dim=1)
+        neg_scores = torch.sum(u_e * neg_e, dim=2)
+        ij = torch.sum(neg_e * pos_e, dim=2)
         reward = neg_scores + ij
 
         return reward

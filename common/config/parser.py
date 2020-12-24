@@ -8,6 +8,9 @@ def parse_args():
         "--data_path", nargs="?", default="../Data/", help="Input data path."
     )
     parser.add_argument(
+        "--modeltype", nargs="?", default="KGAT", help="Choose a model type."
+    )
+    parser.add_argument(
         "--dataset", nargs="?", default="last-fm", help="Choose a dataset."
     )
     parser.add_argument("--emb_size", type=int, default=64, help="Embedding size.")
@@ -64,13 +67,13 @@ def parse_args():
         "--test_batch_size", type=int, default=1024, help="batch size for test"
     )
     parser.add_argument("--num_threads", type=int, default=4, help="number of threads.")
-    parser.add_argument("--epoch", type=int, default=400, help="Number of epoch.")
-    parser.add_argument("--show_step", type=int, default=3, help="test step.")
+    parser.add_argument("--epoch", type=int, default=10, help="Number of epoch.")
+    parser.add_argument("--show_step", type=int, default=1, help="test step.")
     parser.add_argument(
         "--adj_epoch", type=int, default=1, help="build adj matrix per _ epoch"
     )
     parser.add_argument(
-        "--pretrain_r", type=bool, default=True, help="use pretrained model or not"
+        "--pretrain_r", type=bool, default=False, help="use pretrained model or not"
     )
     parser.add_argument(
         "--freeze_s",
