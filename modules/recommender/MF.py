@@ -11,6 +11,7 @@ class MF(nn.Module):
         self.data_config = data_config
         self.n_users = data_config["n_users"]
         self.n_items = data_config["n_items"]
+        self.n_entities = data_config["n_entities"]
 
         self.emb_size = args_config.emb_size
         self.regs = eval(args_config.regs)
